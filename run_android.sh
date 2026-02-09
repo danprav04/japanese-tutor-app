@@ -19,7 +19,7 @@ echo "Building app..."
 echo "Installing app..."
 # Try uninstalling first (fixes misleading storage errors)
 adb uninstall com.japanesetutor.app || true
-if adb install -r android/app/build/outputs/apk/debug/app-debug.apk; then
+if adb install -r app/build/outputs/apk/debug/app-debug.apk; then
     echo "Install successful."
 else
     echo "Install failed."
