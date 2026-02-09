@@ -34,6 +34,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1e6d04e3-19b5-4d42-8530-b5e3cf2fad4f"
+      }
+    },
+    "owner": "danprav"
   }
 }
