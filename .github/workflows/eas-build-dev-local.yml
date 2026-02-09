@@ -48,28 +48,6 @@ jobs:
       - name: Install EAS CLI globally
         run: npm install -g eas-cli
 
-      - name: Decode Android Keystore
-        id: decode_keystore
-        run: |
-          KEYSTORE_PATH="${PWD}/production.keystore"
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$KEYSTORE_PATH"
-          echo "Keystore decoded to $KEYSTORE_PATH"
-          echo "keystore_path=$KEYSTORE_PATH" >> $GITHUB_OUTPUT
-
-      - name: Create credentials.json
-        run: |
-          echo '{
-            "android": {
-              "keystore": {
-                "keystorePath": "${{ steps.decode_keystore.outputs.keystore_path }}",
-                "keystorePassword": "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}",
-                "keyAlias": "${{ secrets.ANDROID_KEYSTORE_ALIAS }}",
-                "keyPassword": "${{ secrets.ANDROID_KEY_PASSWORD }}"
-              }
-            }
-          }' > credentials.json
-          echo "credentials.json created successfully."
-
       - name: Build development client locally for Android
         run: eas build --profile development --platform android --local --non-interactive
         env:
