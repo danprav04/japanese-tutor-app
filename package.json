@@ -21,7 +21,7 @@
     "expo-secure-store": "^15.0.8",
     "expo-splash-screen": "^31.0.13",
     "expo-status-bar": "~3.0.9",
-    "react": "19.1.0",
+    "react": "19.2.4",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "^2.30.0",
     "react-native-get-random-values": "^2.0.0",
@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@types/base-64": "^1.0.2",
-    "@types/react": "~19.1.0",
+    "@types/react": "~19.2.4",
     "@types/text-encoding": "^0.0.40",
     "@types/uuid": "^10.0.0",
     "typescript": "~5.9.2"
