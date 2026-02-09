@@ -13,14 +13,17 @@ echo "Stopping Gradle Daemon..."
 cd android || exit
 ./gradlew --stop
 
-echo "Building and installing app..."
-if ./gradlew installDebug --info; then
-    echo "Gradle install successful."
+echo "Building app..."
+./gradlew assembleDebug
+
+echo "Installing app..."
+# Try uninstalling first (fixes misleading storage errors)
+adb uninstall com.japanesetutor.app || true
+if adb install -r android/app/build/outputs/apk/debug/app-debug.apk; then
+    echo "Install successful."
 else
-    echo "Gradle install failed. Attempting manual ADB install..."
-    # Try uninstalling first (fixes misleading storage errors)
-    adb uninstall com.japanesetutor.app || true
-    adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+    echo "Install failed."
+    exit 1
 fi
 
 echo "Starting Expo bundler..."
