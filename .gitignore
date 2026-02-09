@@ -40,3 +40,4 @@ yarn-error.*
 /ios
 /android
 *.log
+debug_keystore_base64.txt
