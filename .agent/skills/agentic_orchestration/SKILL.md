@@ -1,58 +1,86 @@
 ---
 name: agentic_orchestration
-description: Guidelines for LangGraph orchestration, Hermes engine compatibility, and supervisor-worker patterns in a mobile environment.
+description: AI chat orchestration, Hermes polyfills, conversation persistence, and Gemini multi-key client patterns.
 ---
 
 # Agentic Orchestration
 
-## Framework: LangGraph
-The system uses LangGraph to model interactions as state machines. This allows for persistent, cyclic workflows required for tutoring.
+## Chat Architecture
+The tutor agent (`src/services/tutor-agent.ts`) orchestrates conversations:
 
-### State Persistence: SQLite Checkpointer
-Since there is no Redis, implement a custom `SQLite Checkpointer` using `op-sqlite`. This serializes graph state into JSON for persistence across app restarts.
+1. **User sends message** → chat screen calls `sendMessage(threadId, text)`
+2. **Load context** → retrieve conversation history from SQLite checkpoint
+3. **Build prompt** → system prompt + last 20 messages as conversation context
+4. **Call Gemini** → `gemini-client.ts` handles API call with key rotation
+5. **Persist state** → save updated conversation as new checkpoint in SQLite
+6. **Return response** → displayed in GiftedChat UI
 
-## Topology: Supervisor-Worker
-- **Supervisor (Router)**: Central brain that manages the "Master Plan" and routes intent.
-- **Socratic Tutor**: The interface persona. Uses Socratic questioning to guide, never gives answers immediately.
-- **Curriculum Architect**: Queries graph for prerequisites and plans the path.
-- **RAG Agent**: Vector searches PDF chunks and synthesizes answers.
-- **Linguistic Analyst (Observer)**: Silent sub-agent that tokenizes input to update BKT models and detect grammar errors.
-- **Memory Manager**: Manages episodic memory (vector search) and SRS queues.
+### Conversation Persistence (SQLite Checkpointer)
+File: `src/db/checkpointer.ts`
 
-## Model Context Protocol (MCP)
-Use MCP to bridge the LLM "Brain" to specialized "Senses".
-- **Lexical Server**: Wraps Jisho API for ground-truth definitions.
-- **Memory Server**: Connects to AnkiConnect for physical card management.
-- **Linguistic Server**: Wraps Sudachi/MeCab for morphological analysis.
-- **Pitch Accent Server**: Wraps Onsei/OJAD for pitch visualization.
+- Each thread stores serialized `ConversationState` (message array) as JSON.
+- Checkpoints keyed by `(thread_id, checkpoint_id)`.
+- `getLatestCheckpoint(threadId)` retrieves most recent state.
+- `saveCheckpoint(threadId, checkpointId, data)` persists after each message.
+- In-memory cache (`Map<string, ConversationMessage[]>`) avoids redundant DB reads.
 
-## Hermes Compatibility Strategy
-React Native's Hermes engine lacks many Node/Web APIs required by LangChain.
+### System Prompt Design
+The system prompt (`SYSTEM_PROMPT` in `tutor-agent.ts`) defines Sensei's persona:
+- Friendly and encouraging tone
+- Mix of English and Japanese adapted to student level
+- Always show furigana for kanji
+- Include example sentences with translations
+- Correct mistakes gently
+- Mobile-optimized formatting
 
-### Required Polyfills (index.js)
-```javascript
-import 'react-native-get-random-values';
-import { polyfill as polyfillEncoding } from 'react-native-polyfill-globals/src/encoding';
-import { polyfill as polyfillReadableStream } from 'react-native-polyfill-globals/src/readable-stream';
-import 'core-js/proposals/async-iterator-helpers';
+## Gemini Multi-Key Client
+File: `src/services/gemini-client.ts`
 
-polyfillEncoding();
-polyfillReadableStream();
+### Key Rotation
+```typescript
+// On 429/rate-limit, rotate to next key automatically
+private rotateKey(): void {
+  this.currentKeyIndex = (this.currentKeyIndex + 1) % this.keys.length;
+}
 ```
 
-### Stability Fallback
-If streaming responses are unstable on Android, disable streaming (`stream: false`) for the LLM.
+### Methods
+| Method | Purpose |
+|--------|---------|
+| `generate(prompt, systemPrompt?)` | Single response with retry on rate limit |
+| `generateStream(prompt, systemPrompt?)` | AsyncGenerator for streaming responses |
+| `generateJSON<T>(prompt, schema)` | Structured JSON output with schema enforcement |
+| `embed(text)` | Text embeddings via `text-embedding-004` model |
 
-## Context & Memory Management
-- **Sliding Window with Summarization**: When token limit is reached, summarize oldest interactions into "Long-Term Memory" entries.
-- **Decoupled Memory**:
-  - **Working**: Immediate conversation (Redis/RAM).
-  - **Episodic**: Interaction history (Vector DB).
-  - **Semantic**: Student Knowledge State (SQL/BKT).
-- **Context Isolation**: Flush working memory when switching topics (e.g., Grammar -> Roleplay) to prevent "Context Rot".
+### Models
+- `gemini-3-flash` — fast, lower cost (default)
+- `gemini-3-pro` — advanced reasoning
 
-## Generative UI Strategy
-Required for "AI generated tools" like specialized flashcards.
-- **JSON Schema Strategy**: The agent must adhere to a strict JSON schema for any generated card data (Front, Back, Type).
-- **Dynamic Renderer**: Map JSON arrays to React Native components.
-- **Interactivity**: Bind FSRS rating buttons (Easy/Good/Hard/Again) to generated cards to persist them in the FSRS database.
+## Hermes Engine Polyfills
+File: `src/utils/polyfills.ts` — **must be imported first** in `index.tsx`.
+
+### What's Polyfilled
+| API | Package | Why |
+|-----|---------|-----|
+| `crypto.getRandomValues` | `react-native-get-random-values` | UUID generation |
+| `btoa` / `atob` | `base-64` | Base64 encoding for API payloads |
+| `TextEncoder` / `TextDecoder` | `text-encoding` | String encoding for AI SDK |
+| `ReadableStream` / `WritableStream` / `TransformStream` | `web-streams-polyfill` | Streaming responses |
+
+### Critical Rules
+- Polyfills must be the **first import** in `index.tsx` (before React/Expo).
+- `ReadableStream` requires `as any` cast due to type mismatch with global.
+- If streaming is unstable on a device, fall back to `generate()` (non-streaming).
+
+## Future: Multi-Agent Architecture
+Planned supervisor-worker topology (not yet implemented):
+- **Supervisor (Router)**: Routes user intent to specialist agents
+- **Curriculum Agent**: Queries DAG for prerequisites and learning path
+- **RAG Agent**: Vector searches uploaded material chunks
+- **Linguistic Analyst**: Tokenizes student input to update BKT models
+
+## Generative UI (Cards from Chat)
+The tutor can generate flashcards during conversation:
+1. Agent outputs structured JSON (front, back, type)
+2. `card-service.createFlashcard()` persists to database
+3. Cards appear in the Review tab on next focus

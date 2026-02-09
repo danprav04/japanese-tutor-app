@@ -1,50 +1,95 @@
 ---
 name: japanese_tutor_core
-description: Core architecture and data infrastructure for the Japanese Tutor app, focusing on Local-First principles and op-sqlite.
+description: Core architecture, data infrastructure, and conventions for the Japanese Tutor app — Local-First, op-sqlite, Zustand, and BYOK model.
 ---
 
 # Japanese Tutor Core Architecture
 
-## System Philosophy: "Local-First" Autonomous Tutor
-The objective is a fully autonomous React Native and Expo application functioning without a developer-managed backend. The mobile device is the primary computational node for data persistence, cognitive modeling, and generative orchestration.
+## System Philosophy: Local-First Autonomous Tutor
+The app is a fully autonomous React Native + Expo application targeting **Android only**. The device is the primary node for data persistence, cognitive modeling, and AI orchestration. No developer-managed backend.
 
-### Key Benefits
-- User privacy and data sovereignty.
-- Operational scalability (zero server overhead).
-- Offline capability.
+### Key Principles
+- All data persisted in `op-sqlite` (no AsyncStorage for structured data).
+- API keys stored in `expo-secure-store` (hardware-backed Keystore on Android).
+- State management via **Zustand** (`src/store/app-store.ts`).
+- Donation-only monetization via RevenueCat (no ads).
+- Hermes engine — requires polyfills for Web APIs (see `src/utils/polyfills.ts`).
 
-## Core Data Infrastructure: Hybrid Knowledge Store
-The system uses `op-sqlite` for high-performance relational, vector, and graph operations.
+## Core Data Layer: op-sqlite
 
-### Selection: op-sqlite
-- **Why**: Leverages JSI for C++ bindings directly to JavaScript, avoiding bridge latency.
-- **Extensions**: Supports `sqlite-vec` or `libsql` for on-device vector search.
+### Why op-sqlite
+- JSI-based C++ bindings — zero bridge latency.
+- Synchronous execution for performance-critical paths.
+- Schema defined inline in `src/db/database.ts` (no separate migration files).
 
-### Curriculum Knowledge Graph Schema
-Model Japanese as a Directed Acyclic Graph (DAG) of dependencies using recursive CTEs.
+### Database Tables
 
-#### Tables
-- `curriculum_nodes`: Stores concepts (title, type, JLPT, content, embeddings).
-- `node_dependencies`: Stores parent-child prerequisites.
+| Table | Purpose |
+|-------|---------|
+| `curriculum_nodes` | Knowledge graph nodes (grammar, vocab, kanji) |
+| `node_dependencies` | DAG edges for prerequisite tracking |
+| `user_progress` | BKT mastery state per node |
+| `cards` | FSRS flashcard state (stability, difficulty, due) |
+| `review_logs` | History of card reviews (rating, timestamps) |
+| `documents` / `document_chunks` | Uploaded material for RAG |
+| `checkpoints` | LangGraph conversation state persistence |
+| `app_settings` | Key-value settings store |
 
-### Vector Storage for RAG
-- Virtual table `document_vectors` using `vec0`.
-- `document_metadata` for mapping chunks to text and documents.
-- Use sub-millisecond KNN searches for "Upload material" feature.
+### Conventions
+- Use `db.execute(sql, params)` — synchronous API.
+- All IDs are UUIDs (`uuid` package).
+- Dates stored as ISO 8601 strings.
+- JSON data stored as TEXT columns, parsed in service layer.
+- Service files in `src/services/` bridge algorithms to database.
+
+## File Structure
+
+```
+app/                     # Expo Router screens
+├── _layout.tsx          # Root layout (DB init + settings load)
+├── (tabs)/
+│   ├── _layout.tsx      # Tab navigator (Chat, Review, Progress, Settings)
+│   ├── index.tsx        # Chat screen (tutor-agent)
+│   ├── flashcards.tsx   # FSRS review screen
+│   ├── progress.tsx     # BKT mastery visualization
+│   └── settings.tsx     # API keys + model + uploads
+src/
+├── algorithms/
+│   ├── bkt.ts           # Bayesian Knowledge Tracing
+│   └── fsrs.ts          # ts-fsrs wrapper
+├── db/
+│   ├── database.ts      # DB init + schema
+│   └── checkpointer.ts  # Conversation state persistence
+├── services/
+│   ├── gemini-client.ts # Multi-key BYOK Gemini client
+│   ├── tutor-agent.ts   # Chat orchestration
+│   ├── card-service.ts  # FSRS ↔ DB bridge
+│   ├── progress-service.ts  # BKT ↔ DB bridge
+│   └── curriculum-service.ts # Node CRUD + graph
+├── store/
+│   └── app-store.ts     # Zustand global state
+├── types/
+│   └── polyfills.d.ts   # Type declarations for polyfill modules
+└── utils/
+    └── polyfills.ts     # Hermes Web API polyfills
+```
 
 ## Secure Key Storage (BYOK)
-The "Bring Your Own Key" model requires secure client-side storage.
-- **Tool**: `expo-secure-store`.
-- **Practice**: Encrypt keys on hardware-backed Keychain (iOS) or Keystore (Android). Never persist keys in Redux, Zustand, or AsyncStorage. Retrieve asynchronously only at the moment of API request.
+- **Storage**: `expo-secure-store` (Android Keystore-backed).
+- **Runtime state**: Zustand store holds keys in memory after async load.
+- **Persistence**: Keys are JSON-serialized and stored under `gemini_api_keys`.
+- **Multi-key rotation**: `GeminiClient` automatically rotates on 429 errors.
+- **Never** store keys in plain AsyncStorage or app_settings table.
 
-## Monetization (RevenueCat & Ads)
-The app stays autonomous by using RevenueCat as a backend-as-a-service for IAP.
-- **Disable Ads**: Non-consumable purchase. Check active entitlements via `getCustomerInfo()`.
-- **Donations**: Consumable IAPs (e.g., "Buy me a coffee").
-- **Ad Integration**: `react-native-google-mobile-ads`. Wrap `BannerAd` in a conditional check: `{!isPro && <BannerAd... /> }`.
-- **Offline Respect**: Use RevenueCat's client-side caching to ensure "Pro" status persists offline.
+## Monetization
+- **Donation-only** via RevenueCat (no ads).
+- Products: Coffee ($3), Meal ($10), Support ($25) — consumable IAPs.
+- Track total donated locally in `app_settings` table.
 
 ## Implementation Guidelines
-1. **Never use a backend**: All data must persist in `op-sqlite`.
-2. **Synchronous SQL**: Use `op-sqlite`'s synchronous execution for performance-critical logic.
-3. **Graph Mastery**: Ensure advanced topics are locked until prerequisites reach a BKT mastery threshold (>0.95).
+1. **No backend**: All logic and data lives on-device.
+2. **Synchronous SQL**: Use `db.execute()` (sync) for reads, not async wrappers.
+3. **Graph mastery**: Nodes unlock when ALL parent prerequisites reach BKT mastery > 0.95.
+4. **Service layer pattern**: Screens → Services → Database. Never call `db.execute` from screen components.
+5. **Entry point**: `index.tsx` imports polyfills first, then registers the app.
+6. **Root layout**: `app/_layout.tsx` must call `initDatabase()` and `loadFromStorage()` before rendering.
