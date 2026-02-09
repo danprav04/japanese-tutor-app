@@ -1,0 +1,139 @@
+/**
+ * SQLite Checkpointer for LangGraph State Persistence
+ * 
+ * Stores conversation state in op-sqlite so that agent conversations
+ * can be resumed across app sessions.
+ */
+
+import { getDatabase } from './database';
+
+export interface Checkpoint {
+  threadId: string;
+  checkpointId: string;
+  parentCheckpointId: string | null;
+  data: Record<string, unknown>;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+/**
+ * Save a checkpoint for a given thread
+ */
+export function saveCheckpoint(
+  threadId: string,
+  checkpointId: string,
+  data: Record<string, unknown>,
+  parentCheckpointId?: string,
+  metadata?: Record<string, unknown>
+): void {
+  const db = getDatabase();
+  db.execute(
+    `INSERT OR REPLACE INTO checkpoints (thread_id, checkpoint_id, parent_checkpoint_id, checkpoint_data, metadata)
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      threadId,
+      checkpointId,
+      parentCheckpointId ?? null,
+      JSON.stringify(data),
+      metadata ? JSON.stringify(metadata) : null,
+    ]
+  );
+}
+
+/**
+ * Get the latest checkpoint for a thread
+ */
+export function getLatestCheckpoint(threadId: string): Checkpoint | null {
+  const db = getDatabase();
+  const result = db.execute(
+    `SELECT thread_id, checkpoint_id, parent_checkpoint_id, checkpoint_data, metadata, created_at
+     FROM checkpoints
+     WHERE thread_id = ?
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [threadId]
+  );
+
+  if (!result.rows || result.rows.length === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  return {
+    threadId: row.thread_id as string,
+    checkpointId: row.checkpoint_id as string,
+    parentCheckpointId: row.parent_checkpoint_id as string | null,
+    data: JSON.parse(row.checkpoint_data as string),
+    metadata: row.metadata ? JSON.parse(row.metadata as string) : null,
+    createdAt: row.created_at as string,
+  };
+}
+
+/**
+ * Get a specific checkpoint by ID
+ */
+export function getCheckpoint(threadId: string, checkpointId: string): Checkpoint | null {
+  const db = getDatabase();
+  const result = db.execute(
+    `SELECT thread_id, checkpoint_id, parent_checkpoint_id, checkpoint_data, metadata, created_at
+     FROM checkpoints
+     WHERE thread_id = ? AND checkpoint_id = ?`,
+    [threadId, checkpointId]
+  );
+
+  if (!result.rows || result.rows.length === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  return {
+    threadId: row.thread_id as string,
+    checkpointId: row.checkpoint_id as string,
+    parentCheckpointId: row.parent_checkpoint_id as string | null,
+    data: JSON.parse(row.checkpoint_data as string),
+    metadata: row.metadata ? JSON.parse(row.metadata as string) : null,
+    createdAt: row.created_at as string,
+  };
+}
+
+/**
+ * List all checkpoints for a thread (ordered by creation time)
+ */
+export function listCheckpoints(threadId: string, limit: number = 10): Checkpoint[] {
+  const db = getDatabase();
+  const result = db.execute(
+    `SELECT thread_id, checkpoint_id, parent_checkpoint_id, checkpoint_data, metadata, created_at
+     FROM checkpoints
+     WHERE thread_id = ?
+     ORDER BY created_at DESC
+     LIMIT ?`,
+    [threadId, limit]
+  );
+
+  if (!result.rows) return [];
+
+  return result.rows.map((row) => ({
+    threadId: row.thread_id as string,
+    checkpointId: row.checkpoint_id as string,
+    parentCheckpointId: row.parent_checkpoint_id as string | null,
+    data: JSON.parse(row.checkpoint_data as string),
+    metadata: row.metadata ? JSON.parse(row.metadata as string) : null,
+    createdAt: row.created_at as string,
+  }));
+}
+
+/**
+ * Delete all checkpoints for a thread
+ */
+export function clearThread(threadId: string): void {
+  const db = getDatabase();
+  db.execute(`DELETE FROM checkpoints WHERE thread_id = ?`, [threadId]);
+}
+
+/**
+ * Delete all checkpoints (full reset)
+ */
+export function clearAllCheckpoints(): void {
+  const db = getDatabase();
+  db.execute(`DELETE FROM checkpoints`);
+}

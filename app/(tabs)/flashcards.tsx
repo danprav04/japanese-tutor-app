@@ -1,72 +1,143 @@
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppStore } from '../../src/store/app-store';
+import { getDueCards, reviewCardAndPersist, getCardSchedulingPreview } from '../../src/services/card-service';
+import { recordAnswer } from '../../src/services/progress-service';
+import { type ReviewRating, Rating, type CardData } from '../../src/algorithms/fsrs';
 
-interface Flashcard {
-  id: string;
+interface DisplayCard {
+  card_id: string;
+  node_id: string | null;
   front: string;
   back: string;
-  type: 'vocab' | 'grammar' | 'kanji';
+  card_type: 'vocab' | 'grammar' | 'kanji';
 }
 
-// Sample data - will be replaced with FSRS-managed cards from database
-const sampleCards: Flashcard[] = [
-  { id: '1', front: '食べる', back: 'to eat (taberu)', type: 'vocab' },
-  { id: '2', front: '日', back: 'sun, day (hi, nichi)', type: 'kanji' },
-  { id: '3', front: '〜ている', back: 'progressive form (-ing)', type: 'grammar' },
-];
-
 export default function FlashcardsScreen() {
+  const { isDatabaseReady, setCardsDueCount, setTotalReviews, totalReviews } = useAppStore();
+  const [cards, setCards] = useState<DisplayCard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [completed, setCompleted] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [scheduling, setScheduling] = useState<{ again: string; hard: string; good: string; easy: string }>({
+    again: '?', hard: '?', good: '?', easy: '?',
+  });
 
-  const currentCard = sampleCards[currentIndex];
-  const hasCards = sampleCards.length > 0;
+  // Load due cards
+  const loadCards = useCallback(() => {
+    if (!isDatabaseReady) return;
+    setIsLoading(true);
+    try {
+      const due = getDueCards(20);
+      setCards(due.map((c: CardData) => ({
+        card_id: c.card_id,
+        node_id: c.node_id,
+        front: c.front,
+        back: c.back,
+        card_type: c.card_type,
+      })));
+      setCardsDueCount(due.length);
+      setCurrentIndex(0);
+      setCompleted(0);
+      setIsFlipped(false);
+    } catch (err) {
+      console.error('Failed to load cards:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isDatabaseReady]);
+
+  useEffect(() => {
+    loadCards();
+  }, [loadCards]);
+
+  // Update scheduling when card changes or flips
+  useEffect(() => {
+    if (cards.length > 0 && currentIndex < cards.length && isFlipped) {
+      try {
+        const preview = getCardSchedulingPreview(cards[currentIndex].card_id);
+        setScheduling(preview);
+      } catch {
+        setScheduling({ again: '?', hard: '?', good: '?', easy: '?' });
+      }
+    }
+  }, [currentIndex, isFlipped, cards]);
 
   const handleFlip = () => setIsFlipped(!isFlipped);
 
-  const handleRating = (rating: 'again' | 'hard' | 'good' | 'easy') => {
-    // TODO: Update FSRS card state based on rating
-    console.log(`Card ${currentCard.id} rated: ${rating}`);
-    
+  const handleRating = (rating: ReviewRating) => {
+    const card = cards[currentIndex];
+    try {
+      // Update FSRS card state
+      reviewCardAndPersist(card.card_id, rating);
+
+      // Update BKT mastery if linked to a curriculum node
+      if (card.node_id) {
+        const isCorrect = rating === Rating.Good || rating === Rating.Easy;
+        recordAnswer(card.node_id, isCorrect);
+      }
+
+      setTotalReviews(totalReviews + 1);
+    } catch (err) {
+      console.error('Failed to record review:', err);
+    }
+
     setIsFlipped(false);
     setCompleted(completed + 1);
-    
-    if (currentIndex < sampleCards.length - 1) {
+
+    if (currentIndex < cards.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      setCurrentIndex(0); // Loop for demo
+      // Session complete — reload to check for more
+      loadCards();
     }
   };
 
-  if (!hasCards) {
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#6366f1" />
+        <Text style={styles.loadingText}>Loading cards...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (cards.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>📚</Text>
           <Text style={styles.emptyTitle}>No cards due!</Text>
-          <Text style={styles.emptyText}>Learn some content in the Chat tab first.</Text>
+          <Text style={styles.emptyText}>
+            Learn some content in the Chat tab or upload materials in Settings to generate flashcards.
+          </Text>
+          <TouchableOpacity style={styles.refreshButton} onPress={loadCards}>
+            <Text style={styles.refreshText}>Check Again</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
+  const currentCard = cards[currentIndex];
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.progress}>
         <Text style={styles.progressText}>
-          {completed} reviewed • {sampleCards.length - completed} remaining
+          {completed} reviewed • {cards.length - completed} remaining
         </Text>
       </View>
 
-      <TouchableOpacity 
-        style={styles.cardContainer} 
+      <TouchableOpacity
+        style={styles.cardContainer}
         onPress={handleFlip}
         activeOpacity={0.9}
       >
         <View style={[styles.card, isFlipped && styles.cardFlipped]}>
-          <Text style={styles.cardType}>{currentCard.type.toUpperCase()}</Text>
+          <Text style={styles.cardType}>{currentCard.card_type.toUpperCase()}</Text>
           <Text style={styles.cardText}>
             {isFlipped ? currentCard.back : currentCard.front}
           </Text>
@@ -78,33 +149,33 @@ export default function FlashcardsScreen() {
 
       {isFlipped && (
         <View style={styles.ratingContainer}>
-          <TouchableOpacity 
-            style={[styles.ratingButton, styles.againButton]} 
-            onPress={() => handleRating('again')}
+          <TouchableOpacity
+            style={[styles.ratingButton, styles.againButton]}
+            onPress={() => handleRating(Rating.Again)}
           >
             <Text style={styles.ratingText}>Again</Text>
-            <Text style={styles.ratingSubtext}>1m</Text>
+            <Text style={styles.ratingSubtext}>{scheduling.again}</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.ratingButton, styles.hardButton]} 
-            onPress={() => handleRating('hard')}
+          <TouchableOpacity
+            style={[styles.ratingButton, styles.hardButton]}
+            onPress={() => handleRating(Rating.Hard)}
           >
             <Text style={styles.ratingText}>Hard</Text>
-            <Text style={styles.ratingSubtext}>6m</Text>
+            <Text style={styles.ratingSubtext}>{scheduling.hard}</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.ratingButton, styles.goodButton]} 
-            onPress={() => handleRating('good')}
+          <TouchableOpacity
+            style={[styles.ratingButton, styles.goodButton]}
+            onPress={() => handleRating(Rating.Good)}
           >
             <Text style={styles.ratingText}>Good</Text>
-            <Text style={styles.ratingSubtext}>10m</Text>
+            <Text style={styles.ratingSubtext}>{scheduling.good}</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.ratingButton, styles.easyButton]} 
-            onPress={() => handleRating('easy')}
+          <TouchableOpacity
+            style={[styles.ratingButton, styles.easyButton]}
+            onPress={() => handleRating(Rating.Easy)}
           >
             <Text style={styles.ratingText}>Easy</Text>
-            <Text style={styles.ratingSubtext}>4d</Text>
+            <Text style={styles.ratingSubtext}>{scheduling.easy}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -118,6 +189,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0a0a0a',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#999',
+    marginTop: 12,
   },
   progress: {
     paddingVertical: 12,
@@ -213,5 +292,16 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 16,
     textAlign: 'center',
+    marginBottom: 24,
+  },
+  refreshButton: {
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  refreshText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });

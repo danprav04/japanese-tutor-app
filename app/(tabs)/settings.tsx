@@ -1,60 +1,40 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState, useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import { useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
-
-const API_KEYS_STORAGE = 'gemini_api_keys';
+import { useAppStore, type ModelType } from '../../src/store/app-store';
 
 export default function SettingsScreen() {
-  const [apiKeys, setApiKeys] = useState<string[]>([]);
+  const {
+    apiKeys,
+    currentModel,
+    addApiKey,
+    removeApiKey,
+    setCurrentModel,
+  } = useAppStore();
+
   const [newKey, setNewKey] = useState('');
-  const [selectedModel, setSelectedModel] = useState<'gemini-3-flash' | 'gemini-3-pro'>('gemini-3-flash');
 
-  useEffect(() => {
-    loadApiKeys();
-  }, []);
-
-  const loadApiKeys = async () => {
-    try {
-      const stored = await SecureStore.getItemAsync(API_KEYS_STORAGE);
-      if (stored) {
-        setApiKeys(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.error('Failed to load API keys:', error);
-    }
-  };
-
-  const saveApiKeys = async (keys: string[]) => {
-    try {
-      await SecureStore.setItemAsync(API_KEYS_STORAGE, JSON.stringify(keys));
-      setApiKeys(keys);
-    } catch (error) {
-      console.error('Failed to save API keys:', error);
-    }
-  };
-
-  const addApiKey = () => {
+  const handleAddKey = () => {
     if (newKey.trim()) {
-      const updated = [...apiKeys, newKey.trim()];
-      saveApiKeys(updated);
+      addApiKey(newKey.trim());
       setNewKey('');
     }
   };
 
-  const removeApiKey = (index: number) => {
+  const handleRemoveKey = (index: number) => {
     Alert.alert('Remove Key', 'Are you sure you want to remove this API key?', [
       { text: 'Cancel', style: 'cancel' },
-      { 
-        text: 'Remove', 
+      {
+        text: 'Remove',
         style: 'destructive',
-        onPress: () => {
-          const updated = apiKeys.filter((_, i) => i !== index);
-          saveApiKeys(updated);
-        }
+        onPress: () => removeApiKey(index),
       },
     ]);
+  };
+
+  const handleModelChange = (model: ModelType) => {
+    setCurrentModel(model);
   };
 
   const handleUploadMaterial = async () => {
@@ -109,7 +89,7 @@ export default function SettingsScreen() {
               secureTextEntry
               autoCapitalize="none"
             />
-            <TouchableOpacity style={styles.addButton} onPress={addApiKey}>
+            <TouchableOpacity style={styles.addButton} onPress={handleAddKey}>
               <Text style={styles.addButtonText}>Add</Text>
             </TouchableOpacity>
           </View>
@@ -119,7 +99,7 @@ export default function SettingsScreen() {
               <Text style={styles.keyText}>
                 Key {index + 1}: ••••{key.slice(-8)}
               </Text>
-              <TouchableOpacity onPress={() => removeApiKey(index)}>
+              <TouchableOpacity onPress={() => handleRemoveKey(index)}>
                 <Text style={styles.removeText}>Remove</Text>
               </TouchableOpacity>
             </View>
@@ -135,19 +115,19 @@ export default function SettingsScreen() {
         {/* Model Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🤖 Model</Text>
-          
+
           <View style={styles.modelOptions}>
-            <TouchableOpacity 
-              style={[styles.modelOption, selectedModel === 'gemini-3-flash' && styles.modelSelected]}
-              onPress={() => setSelectedModel('gemini-3-flash')}
+            <TouchableOpacity
+              style={[styles.modelOption, currentModel === 'gemini-3-flash' && styles.modelSelected]}
+              onPress={() => handleModelChange('gemini-3-flash')}
             >
               <Text style={styles.modelName}>Gemini 3 Flash</Text>
               <Text style={styles.modelDesc}>Fast, efficient, lower cost</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.modelOption, selectedModel === 'gemini-3-pro' && styles.modelSelected]}
-              onPress={() => setSelectedModel('gemini-3-pro')}
+
+            <TouchableOpacity
+              style={[styles.modelOption, currentModel === 'gemini-3-pro' && styles.modelSelected]}
+              onPress={() => handleModelChange('gemini-3-pro')}
             >
               <Text style={styles.modelName}>Gemini 3 Pro</Text>
               <Text style={styles.modelDesc}>Advanced reasoning</Text>
@@ -161,7 +141,7 @@ export default function SettingsScreen() {
           <Text style={styles.sectionSubtitle}>
             Upload PDFs, text files, or markdown to expand your curriculum
           </Text>
-          
+
           <TouchableOpacity style={styles.uploadButton} onPress={handleUploadMaterial}>
             <Text style={styles.uploadButtonText}>📁 Choose File</Text>
           </TouchableOpacity>
@@ -173,7 +153,7 @@ export default function SettingsScreen() {
           <Text style={styles.sectionSubtitle}>
             This app is completely free. Donations help with development!
           </Text>
-          
+
           <TouchableOpacity style={styles.donateButton} onPress={handleDonation}>
             <Text style={styles.donateButtonText}>Make a Donation</Text>
           </TouchableOpacity>
@@ -182,6 +162,9 @@ export default function SettingsScreen() {
         {/* About */}
         <View style={styles.section}>
           <Text style={styles.versionText}>Japanese Tutor v1.0.0</Text>
+          <Text style={styles.versionText}>
+            {apiKeys.length} API key{apiKeys.length !== 1 ? 's' : ''} configured • {currentModel}
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -308,5 +291,6 @@ const styles = StyleSheet.create({
     color: '#444',
     fontSize: 12,
     textAlign: 'center',
+    marginTop: 4,
   },
 });

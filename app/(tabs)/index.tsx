@@ -1,47 +1,121 @@
-import { useState, useCallback } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppStore } from '../../src/store/app-store';
+import { sendMessage, loadConversationHistory, createNewThread, initTutor } from '../../src/services/tutor-agent';
+
+const SENSEI_USER = {
+  _id: 2,
+  name: 'Sensei',
+  avatar: '🎓',
+};
 
 export default function ChatScreen() {
-  const [messages, setMessages] = useState<IMessage[]>([
-    {
-      _id: 1,
-      text: 'こんにちは！I\'m your Japanese tutor. Let\'s start learning! 🎌\n\nYou can:\n• Ask me to teach you new vocabulary\n• Practice grammar with exercises\n• Have conversations in Japanese\n• Upload learning materials in Settings',
-      createdAt: new Date(),
-      user: {
-        _id: 2,
-        name: 'Sensei',
-        avatar: '🎓',
-      },
-    },
-  ]);
+  const { apiKeys, currentModel, isGeminiReady, currentThreadId, setCurrentThreadId } = useAppStore();
+  const [messages, setMessages] = useState<IMessage[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const initialized = useRef(false);
 
-  const onSend = useCallback((newMessages: IMessage[] = []) => {
-    setMessages((previousMessages) =>
-      GiftedChat.append(previousMessages, newMessages)
-    );
-    
-    // TODO: Connect to LangGraph agent for response
-    setTimeout(() => {
-      const response: IMessage = {
-        _id: Math.random().toString(),
-        text: 'I received your message! The AI agent will be connected soon. がんばって！ 💪',
+  // Initialize on mount
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
+    // Set initial welcome message
+    setMessages([
+      {
+        _id: 'welcome',
+        text: 'こんにちは！I\'m your Japanese tutor. Let\'s start learning! 🎌\n\nYou can:\n• Ask me to teach you new vocabulary\n• Practice grammar with exercises\n• Have conversations in Japanese\n• Upload learning materials in Settings\n\n⚠️ Add a Gemini API key in Settings to enable AI responses.',
         createdAt: new Date(),
-        user: {
-          _id: 2,
-          name: 'Sensei',
-          avatar: '🎓',
-        },
-      };
-      setMessages((prev) => GiftedChat.append(prev, [response]));
-    }, 500);
+        user: SENSEI_USER,
+      },
+    ]);
+
+    // Load existing conversation history
+    if (currentThreadId) {
+      try {
+        const history = loadConversationHistory(currentThreadId);
+        if (history.length > 0) {
+          const historicalMessages: IMessage[] = history.map((msg, i) => ({
+            _id: `history-${i}`,
+            text: msg.content,
+            createdAt: new Date(msg.timestamp),
+            user: msg.role === 'user' ? { _id: 1 } : SENSEI_USER,
+          }));
+          setMessages(historicalMessages.reverse()); // GiftedChat expects newest first
+        }
+      } catch {
+        // DB not initialized yet — that's fine on first load
+      }
+    }
   }, []);
+
+  // Re-initialize Gemini client when keys/model change
+  useEffect(() => {
+    if (apiKeys.length > 0) {
+      initTutor(apiKeys, currentModel);
+    }
+  }, [apiKeys, currentModel]);
+
+  const onSend = useCallback(async (newMessages: IMessage[] = []) => {
+    const userMessage = newMessages[0];
+    if (!userMessage?.text) return;
+
+    // Add user message immediately
+    setMessages((prev) => GiftedChat.append(prev, newMessages));
+
+    if (!isGeminiReady) {
+      // No API key — show helpful message
+      setTimeout(() => {
+        const noKeyMsg: IMessage = {
+          _id: `no-key-${Date.now()}`,
+          text: '🔑 Please add a Gemini API key in the Settings tab to enable AI responses. You can get a free key from Google AI Studio!',
+          createdAt: new Date(),
+          user: SENSEI_USER,
+        };
+        setMessages((prev) => GiftedChat.append(prev, [noKeyMsg]));
+      }, 300);
+      return;
+    }
+
+    setIsTyping(true);
+
+    try {
+      // Ensure we have a thread
+      let threadId = currentThreadId;
+      if (!threadId || threadId === 'default') {
+        threadId = createNewThread();
+        setCurrentThreadId(threadId);
+      }
+
+      // Get AI response
+      const response = await sendMessage(threadId, userMessage.text);
+
+      const aiMessage: IMessage = {
+        _id: `ai-${Date.now()}`,
+        text: response,
+        createdAt: new Date(),
+        user: SENSEI_USER,
+      };
+      setMessages((prev) => GiftedChat.append(prev, [aiMessage]));
+    } catch (error) {
+      const errorMsg: IMessage = {
+        _id: `error-${Date.now()}`,
+        text: `⚠️ Error: ${error instanceof Error ? error.message : 'Failed to generate response'}.\n\nPlease check your API key in Settings and try again.`,
+        createdAt: new Date(),
+        user: SENSEI_USER,
+      };
+      setMessages((prev) => GiftedChat.append(prev, [errorMsg]));
+    } finally {
+      setIsTyping(false);
+    }
+  }, [isGeminiReady, currentThreadId, setCurrentThreadId]);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <KeyboardAvoidingView 
-        style={styles.container} 
+      <KeyboardAvoidingView
+        style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={90}
       >
@@ -49,11 +123,11 @@ export default function ChatScreen() {
           messages={messages}
           onSend={(msgs) => onSend(msgs)}
           user={{ _id: 1 }}
+          isTyping={isTyping}
           textInputProps={{
             placeholder: "Type a message... (日本語 OK!)",
           }}
-          // placeholder="Type a message... (日本語 OK!)"
-          // @ts-ignore
+          // @ts-ignore - alwaysShowSend exists but types may be outdated
           alwaysShowSend
           renderBubble={(props) => (
             <Bubble
@@ -88,9 +162,20 @@ export default function ChatScreen() {
           renderSend={(props) => (
             <Send {...props} containerStyle={styles.sendContainer}>
               <View style={styles.sendButton}>
-                <View style={styles.sendIcon} />
+                {isTyping ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <View style={styles.sendIcon} />
+                )}
               </View>
             </Send>
+          )}
+          renderFooter={() => (
+            !isGeminiReady ? (
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>🔑 Add API key in Settings to enable AI</Text>
+              </View>
+            ) : null
           )}
         />
       </KeyboardAvoidingView>
@@ -143,5 +228,13 @@ const styles = StyleSheet.create({
     borderTopColor: 'transparent',
     borderBottomColor: 'transparent',
     marginLeft: 4,
+  },
+  footer: {
+    padding: 8,
+    alignItems: 'center',
+  },
+  footerText: {
+    color: '#666',
+    fontSize: 12,
   },
 });
