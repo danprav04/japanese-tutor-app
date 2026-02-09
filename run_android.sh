@@ -14,7 +14,14 @@ cd android || exit
 ./gradlew --stop
 
 echo "Building and installing app..."
-./gradlew installDebug --info
+if ./gradlew installDebug --info; then
+    echo "Gradle install successful."
+else
+    echo "Gradle install failed. Attempting manual ADB install..."
+    # Try uninstalling first (fixes misleading storage errors)
+    adb uninstall com.japanesetutor.app || true
+    adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+fi
 
 echo "Starting Expo bundler..."
 cd ..
