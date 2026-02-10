@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Platform, ActivityIndicator } from 'react-native';
-import { KeyboardAvoidingView, KeyboardProvider } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView, Platform, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore } from '../../src/store/app-store';
@@ -116,12 +115,11 @@ export default function ChatScreen() {
   }, [isGeminiReady, currentThreadId, setCurrentThreadId]);
 
   return (
-    <KeyboardProvider>
-      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
         <KeyboardAvoidingView
           style={styles.container}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 113}
         >
           <GiftedChat
             messages={messages}
@@ -185,7 +183,6 @@ export default function ChatScreen() {
           />
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </KeyboardProvider>
   );
 }
 
