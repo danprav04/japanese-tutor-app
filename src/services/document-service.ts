@@ -14,6 +14,7 @@ import { getGeminiClient } from './gemini-client';
 import { addNode } from './curriculum-service';
 import { createFlashcard } from './card-service';
 import { initializeProgress } from './progress-service';
+import { useAppStore } from '../store/app-store';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -91,6 +92,11 @@ export async function processDocument(
   fileType: string,
 ): Promise<number> {
   const client = getGeminiClient();
+  
+  // Ensure we use the user's selected model
+  const currentModel = useAppStore.getState().currentModel;
+  client.setModel(currentModel);
+
   const db = getDatabase();
 
   // 1. Read file content using SDK 54 File API
@@ -123,6 +129,11 @@ export async function processDocument(
       const extraction = await client.generateJSON<ExtractionResult>(prompt, EXTRACTION_SCHEMA);
       if (extraction.items && Array.isArray(extraction.items)) {
         allItems.push(...extraction.items);
+      }
+      
+      // Conservative delay to avoid hammering the API, especially for lower-limit models like Gemma
+      if (i < textChunks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
   } catch (err) {

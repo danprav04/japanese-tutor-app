@@ -15,7 +15,7 @@ export const MODEL_RATES: Record<ModelType, { rpm: number; tpm: number; rpd: num
   'gemini-3-flash': { rpm: 30, tpm: 1_000_000, rpd: 1_500 },
   'gemini-3-pro': { rpm: 5, tpm: 250_000, rpd: 50 },
   'gemini-2.5-flash': { rpm: 15, tpm: 1_000_000, rpd: 1_500 },
-  'gemma-3-27b-it': { rpm: 30, tpm: 500_000, rpd: 14_400 }, // Estimated
+  'gemma-3-27b-it': { rpm: 30, tpm: 15_000, rpd: 14_400 },
 };
 
 interface RateLimitError extends Error {
@@ -86,15 +86,44 @@ export class GeminiClient {
   /**
    * Generate text response with retry on rate limit
    */
+  /**
+   * Helper to wait for a specified duration
+   */
+  private async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Extract retry delay from error message or default to exponential backoff
+   */
+  private getRetryDelay(error: unknown, attempt: number): number {
+    const defaultDelay = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s...
+    
+    if (error instanceof Error) {
+      // Look for "Please retry in X s." or similar in the error message
+      const match = error.message.match(/retry in (\d+(\.\d+)?)s/i);
+      if (match && match[1]) {
+        return Math.ceil(parseFloat(match[1]) * 1000) + 500; // Add 500ms buffer
+      }
+    }
+    
+    return defaultDelay;
+  }
+
+  /**
+   * Generate text response with retry on rate limit
+   */
   async generate(prompt: string, systemPrompt?: string, configOverride?: Partial<GenerationConfig>): Promise<string> {
-    const maxRetries = Math.min(this.keys.length, 3);
+    // If we have multiple keys, we try rotation. If single key (or all exhausted), we wait.
+    // Total max duration to wait: ~60 seconds
+    const maxRetries = 5; 
     let lastError: Error | null = null;
+    let currentKeyAttempt = 0;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const model = this.getGenerativeModel(configOverride);
 
-        // Build the prompt with optional system instruction
         const fullPrompt = systemPrompt 
           ? `System: ${systemPrompt}\n\nUser: ${prompt}`
           : prompt;
@@ -105,45 +134,75 @@ export class GeminiClient {
       } catch (error) {
         lastError = error as Error;
         
-        if (isRateLimitError(error) && this.keys.length > 1) {
-          console.warn(`⚠️ Rate limit hit on key ${this.currentKeyIndex + 1}, rotating...`);
-          this.rotateKey();
+        if (isRateLimitError(error)) {
+          // If we have multiple keys and haven't tried them all yet for this request, rotate
+          if (this.keys.length > 1 && currentKeyAttempt < this.keys.length) {
+            console.warn(`⚠️ Rate limit hit on key ${this.currentKeyIndex + 1}, rotating...`);
+            this.rotateKey();
+            currentKeyAttempt++;
+            continue; // Retry immediately with new key
+          }
+          
+          // Otherwise, wait and retry
+          const delayMs = this.getRetryDelay(error, attempt);
+          console.warn(`⏳ Rate limit hit. Waiting ${Math.round(delayMs/1000)}s before retry ${attempt + 1}/${maxRetries}...`);
+          await this.delay(delayMs);
         } else {
           throw error;
         }
       }
     }
-
+    
     throw lastError || new Error('Failed to generate response after retries');
   }
 
   /**
    * Generate text with streaming (for real-time updates)
    */
+  /**
+   * Generate text with streaming (for real-time updates)
+   */
   async *generateStream(prompt: string, systemPrompt?: string): AsyncGenerator<string> {
-    const model = this.getGenerativeModel();
-    const fullPrompt = systemPrompt 
-      ? `System: ${systemPrompt}\n\nUser: ${prompt}`
-      : prompt;
+    const maxRetries = 5;
+    let currentKeyAttempt = 0;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const model = this.getGenerativeModel();
+        const fullPrompt = systemPrompt 
+          ? `System: ${systemPrompt}\n\nUser: ${prompt}`
+          : prompt;
 
-    try {
-      const result = await model.generateContentStream(fullPrompt);
+        const result = await model.generateContentStream(fullPrompt);
 
-      for await (const chunk of result.stream) {
-        const text = chunk.text();
-        if (text) {
-          yield text;
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
+          if (text) {
+            yield text;
+          }
+        }
+        return; // Success, exit generator
+      } catch (error) {
+        if (isRateLimitError(error)) {
+           // If we have multiple keys and haven't tried them all yet for this request, rotate
+           if (this.keys.length > 1 && currentKeyAttempt < this.keys.length) {
+            console.warn(`⚠️ Rate limit hit on key ${this.currentKeyIndex + 1} (stream), rotating...`);
+            this.rotateKey();
+            currentKeyAttempt++;
+            continue; // Retry immediately
+          }
+          
+          // Otherwise, wait and retry
+          const delayMs = this.getRetryDelay(error, attempt);
+          console.warn(`⏳ Rate limit hit (stream). Waiting ${Math.round(delayMs/1000)}s before retry ${attempt + 1}/${maxRetries}...`);
+          await this.delay(delayMs);
+        } else {
+          throw error;
         }
       }
-    } catch (error) {
-      if (isRateLimitError(error) && this.keys.length > 1) {
-        this.rotateKey();
-        // Retry with new key
-        yield* this.generateStream(prompt, systemPrompt);
-      } else {
-        throw error;
-      }
     }
+    
+    throw new Error('Failed to generate stream response after retries');
   }
 
   /**
