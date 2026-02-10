@@ -2,12 +2,14 @@ import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { useEffect, useState } from 'react';
-import { initDatabase } from '../src/db/database';
+import { initDatabase, getDatabase } from '../src/db/database';
 import { useAppStore } from '../src/store/app-store';
 import { seedStarterCurriculum } from '../src/services/seed-service';
+import OnboardingScreen from './onboarding';
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { setDatabaseReady, loadFromStorage } = useAppStore();
 
@@ -23,6 +25,20 @@ export default function RootLayout() {
 
         // 2. Load settings from secure storage
         await loadFromStorage();
+
+        // 3. Check if onboarding is complete
+        try {
+          const db = getDatabase();
+          const result = await db.execute(
+            `SELECT value FROM app_settings WHERE key = 'onboarding_complete'`
+          );
+          const onboardingDone = result.rows?.[0]
+            ? ((result.rows[0] as any).value as string) === '1'
+            : false;
+          setShowOnboarding(!onboardingDone);
+        } catch {
+          setShowOnboarding(true);
+        }
 
         setIsReady(true);
       } catch (err) {
@@ -51,6 +67,15 @@ export default function RootLayout() {
         <StatusBar style="light" />
         <ActivityIndicator size="large" color="#6366f1" />
         <Text style={styles.loadingText}>Loading 日本語チューター...</Text>
+      </View>
+    );
+  }
+
+  if (showOnboarding) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <OnboardingScreen onComplete={() => setShowOnboarding(false)} />
       </View>
     );
   }

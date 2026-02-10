@@ -141,4 +141,57 @@ export async function clearAllCheckpoints(): Promise<void> {
   await db.execute(`DELETE FROM checkpoints`);
 }
 
+export interface ThreadSummary {
+  threadId: string;
+  lastMessagePreview: string;
+  createdAt: string;
+  messageCount: number;
+}
 
+/**
+ * List all conversation threads with a preview of their content
+ */
+export async function listThreads(): Promise<ThreadSummary[]> {
+  const db = getDatabase();
+  const result = await db.execute(
+    `SELECT thread_id, checkpoint_data, created_at
+     FROM checkpoints
+     WHERE (thread_id, created_at) IN (
+       SELECT thread_id, MAX(created_at) FROM checkpoints GROUP BY thread_id
+     )
+     ORDER BY created_at DESC`
+  );
+
+  if (!result.rows) return [];
+
+  return (result.rows as any[]).map((row) => {
+    let preview = 'New conversation';
+    let messageCount = 0;
+    try {
+      const data = JSON.parse(row.checkpoint_data as string);
+      if (Array.isArray(data.messages)) {
+        messageCount = data.messages.length;
+        // Find the first user message for a meaningful preview
+        const firstUserMsg = data.messages.find((m: any) => m.role === 'user');
+        if (firstUserMsg) {
+          preview = firstUserMsg.content.slice(0, 60);
+          if (firstUserMsg.content.length > 60) preview += '…';
+        }
+      }
+    } catch {}
+    return {
+      threadId: row.thread_id as string,
+      lastMessagePreview: preview,
+      createdAt: row.created_at as string,
+      messageCount,
+    };
+  });
+}
+
+/**
+ * Delete a specific thread and all its checkpoints
+ */
+export async function deleteThread(threadId: string): Promise<void> {
+  const db = getDatabase();
+  await db.execute(`DELETE FROM checkpoints WHERE thread_id = ?`, [threadId]);
+}

@@ -294,3 +294,48 @@ export async function getCurriculumStats(): Promise<{
   return { totalNodes: total, byType, byLevel };
 }
 
+export interface NodeWithProgress {
+  nodeId: string;
+  title: string;
+  type: 'grammar' | 'vocab' | 'kanji';
+  jlptLevel: number;
+  contentPayload: Record<string, unknown> | null;
+  masteryScore: number;
+  attempts: number;
+  unlocked: boolean;
+}
+
+/**
+ * Get all nodes with their progress data (for curriculum browser)
+ */
+export async function getNodesWithProgress(searchQuery?: string): Promise<NodeWithProgress[]> {
+  const db = getDatabase();
+  let query = `SELECT cn.node_id, cn.title, cn.type, cn.jlpt_level, cn.content_payload,
+                      COALESCE(up.mastery_score, 0) as mastery_score,
+                      COALESCE(up.attempts, 0) as attempts,
+                      COALESCE(up.unlocked, 0) as unlocked
+               FROM curriculum_nodes cn
+               LEFT JOIN user_progress up ON cn.node_id = up.node_id`;
+  const params: any[] = [];
+
+  if (searchQuery && searchQuery.trim()) {
+    query += ` WHERE cn.title LIKE ?`;
+    params.push(`%${searchQuery.trim()}%`);
+  }
+
+  query += ` ORDER BY cn.type, cn.jlpt_level DESC, cn.title`;
+
+  const result = await db.execute(query, params);
+  if (!result.rows) return [];
+
+  return (result.rows as any[]).map((row) => ({
+    nodeId: row.node_id as string,
+    title: row.title as string,
+    type: row.type as 'grammar' | 'vocab' | 'kanji',
+    jlptLevel: row.jlpt_level as number,
+    contentPayload: row.content_payload ? JSON.parse(row.content_payload as string) : null,
+    masteryScore: row.mastery_score as number,
+    attempts: row.attempts as number,
+    unlocked: (row.unlocked as number) === 1,
+  }));
+}

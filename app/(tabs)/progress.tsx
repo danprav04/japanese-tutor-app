@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { useAppStore } from '../../src/store/app-store';
-import { getOverallMastery, getCategoryProgress } from '../../src/services/progress-service';
+import { getOverallMastery, getCategoryProgress, getStudyStreak } from '../../src/services/progress-service';
 import { getCardStats } from '../../src/services/card-service';
 
 interface CategoryData {
@@ -67,17 +67,25 @@ function CategoryBar({ name, mastery, total, learned }: CategoryData) {
 }
 
 export default function ProgressScreen() {
-  const { isDatabaseReady, totalReviews, studyStreak } = useAppStore();
+  const { isDatabaseReady, totalReviews } = useAppStore();
   const [overall, setOverall] = useState({ mastery: 0, total: 0, mastered: 0 });
   const [categories, setCategories] = useState<CategoryData[]>([]);
   const [cardStats, setCardStats] = useState({ total: 0, newCards: 0, learning: 0, reviewing: 0, dueNow: 0 });
+  const [streak, setStreak] = useState(0);
 
   const loadData = useCallback(async () => {
     if (!isDatabaseReady) return;
     try {
-      setOverall(await getOverallMastery());
-      setCategories(await getCategoryProgress());
-      setCardStats(await getCardStats());
+      const [overallData, categoryData, cardData, streakData] = await Promise.all([
+        getOverallMastery(),
+        getCategoryProgress(),
+        getCardStats(),
+        getStudyStreak(),
+      ]);
+      setOverall(overallData);
+      setCategories(categoryData);
+      setCardStats(cardData);
+      setStreak(streakData.streak);
     } catch (err) {
       console.error('Failed to load progress:', err);
     }
@@ -98,7 +106,7 @@ export default function ProgressScreen() {
           <ProgressRing progress={overall.mastery} />
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{studyStreak}</Text>
+              <Text style={styles.statValue}>{streak}</Text>
               <Text style={styles.statLabel}>🔥 Day Streak</Text>
             </View>
             <View style={styles.statItem}>

@@ -1,9 +1,16 @@
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolate,
+  Easing,
+} from 'react-native-reanimated';
 import { useAppStore } from '../../src/store/app-store';
 import { getDueCards, reviewCardAndPersist, getCardSchedulingPreview } from '../../src/services/card-service';
-import { recordAnswer } from '../../src/services/progress-service';
+import { recordAnswer, updateStudyStreak } from '../../src/services/progress-service';
 import { type ReviewRating, Rating, type CardData } from '../../src/algorithms/fsrs';
 
 interface DisplayCard {
@@ -14,6 +21,11 @@ interface DisplayCard {
   card_type: 'vocab' | 'grammar' | 'kanji';
 }
 
+interface SessionStats {
+  totalReviewed: number;
+  ratings: { again: number; hard: number; good: number; easy: number };
+}
+
 export default function FlashcardsScreen() {
   const { isDatabaseReady, setCardsDueCount, setTotalReviews, totalReviews } = useAppStore();
   const [cards, setCards] = useState<DisplayCard[]>([]);
@@ -21,14 +33,33 @@ export default function FlashcardsScreen() {
   const [isFlipped, setIsFlipped] = useState(false);
   const [completed, setCompleted] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionDone, setSessionDone] = useState(false);
+  const [sessionStats, setSessionStats] = useState<SessionStats>({
+    totalReviewed: 0,
+    ratings: { again: 0, hard: 0, good: 0, easy: 0 },
+  });
   const [scheduling, setScheduling] = useState<{ again: string; hard: string; good: string; easy: string }>({
     again: '?', hard: '?', good: '?', easy: '?',
   });
+
+  // Flip animation
+  const flipProgress = useSharedValue(0);
+
+  const frontStyle = useAnimatedStyle(() => ({
+    transform: [{ perspective: 1000 }, { rotateY: `${interpolate(flipProgress.value, [0, 1], [0, 180])}deg` }],
+    backfaceVisibility: 'hidden' as const,
+  }));
+
+  const backStyle = useAnimatedStyle(() => ({
+    transform: [{ perspective: 1000 }, { rotateY: `${interpolate(flipProgress.value, [0, 1], [180, 360])}deg` }],
+    backfaceVisibility: 'hidden' as const,
+  }));
 
   // Load due cards
   const loadCards = useCallback(async () => {
     if (!isDatabaseReady) return;
     setIsLoading(true);
+    setSessionDone(false);
     try {
       const due = await getDueCards(20);
       setCards(due.map((c: CardData) => ({
@@ -42,6 +73,8 @@ export default function FlashcardsScreen() {
       setCurrentIndex(0);
       setCompleted(0);
       setIsFlipped(false);
+      flipProgress.value = 0;
+      setSessionStats({ totalReviewed: 0, ratings: { again: 0, hard: 0, good: 0, easy: 0 } });
     } catch (err) {
       console.error('Failed to load cards:', err);
     } finally {
@@ -70,33 +103,50 @@ export default function FlashcardsScreen() {
     return () => { mounted = false; };
   }, [currentIndex, isFlipped, cards]);
 
-  const handleFlip = () => setIsFlipped(!isFlipped);
+  const handleFlip = () => {
+    const newFlipped = !isFlipped;
+    setIsFlipped(newFlipped);
+    flipProgress.value = withTiming(newFlipped ? 1 : 0, {
+      duration: 400,
+      easing: Easing.out(Easing.cubic),
+    });
+  };
 
   const handleRating = async (rating: ReviewRating) => {
     const card = cards[currentIndex];
     try {
-      // Update FSRS card state
       await reviewCardAndPersist(card.card_id, rating);
 
-      // Update BKT mastery if linked to a curriculum node
       if (card.node_id) {
         const isCorrect = rating === Rating.Good || rating === Rating.Easy;
         await recordAnswer(card.node_id, isCorrect);
       }
 
+      await updateStudyStreak();
       setTotalReviews(totalReviews + 1);
     } catch (err) {
       console.error('Failed to record review:', err);
     }
 
+    // Track session stats
+    const ratingKey = rating === Rating.Again ? 'again'
+      : rating === Rating.Hard ? 'hard'
+      : rating === Rating.Good ? 'good' : 'easy';
+    setSessionStats((prev) => ({
+      totalReviewed: prev.totalReviewed + 1,
+      ratings: { ...prev.ratings, [ratingKey]: prev.ratings[ratingKey] + 1 },
+    }));
+
+    // Reset flip
     setIsFlipped(false);
+    flipProgress.value = withTiming(0, { duration: 200 });
     setCompleted(completed + 1);
 
     if (currentIndex < cards.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      // Session complete — reload to check for more
-      loadCards();
+      // Session complete
+      setSessionDone(true);
     }
   };
 
@@ -126,32 +176,94 @@ export default function FlashcardsScreen() {
     );
   }
 
+  // Session summary screen
+  if (sessionDone) {
+    const total = sessionStats.totalReviewed;
+    const goodPct = total > 0
+      ? Math.round(((sessionStats.ratings.good + sessionStats.ratings.easy) / total) * 100)
+      : 0;
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.summaryContainer}>
+          <Text style={styles.summaryEmoji}>🎉</Text>
+          <Text style={styles.summaryTitle}>Session Complete!</Text>
+          <Text style={styles.summarySubtitle}>
+            You reviewed {total} card{total !== 1 ? 's' : ''}
+          </Text>
+
+          <View style={styles.summaryGrid}>
+            <View style={[styles.summaryItem, { backgroundColor: '#991b1b33' }]}>
+              <Text style={styles.summaryItemValue}>{sessionStats.ratings.again}</Text>
+              <Text style={styles.summaryItemLabel}>Again</Text>
+            </View>
+            <View style={[styles.summaryItem, { backgroundColor: '#854d0e33' }]}>
+              <Text style={styles.summaryItemValue}>{sessionStats.ratings.hard}</Text>
+              <Text style={styles.summaryItemLabel}>Hard</Text>
+            </View>
+            <View style={[styles.summaryItem, { backgroundColor: '#16653433' }]}>
+              <Text style={styles.summaryItemValue}>{sessionStats.ratings.good}</Text>
+              <Text style={styles.summaryItemLabel}>Good</Text>
+            </View>
+            <View style={[styles.summaryItem, { backgroundColor: '#1e40af33' }]}>
+              <Text style={styles.summaryItemValue}>{sessionStats.ratings.easy}</Text>
+              <Text style={styles.summaryItemLabel}>Easy</Text>
+            </View>
+          </View>
+
+          <Text style={styles.summaryAccuracy}>
+            {goodPct}% correct recall
+          </Text>
+
+          <TouchableOpacity style={styles.summaryButton} onPress={loadCards}>
+            <Text style={styles.summaryButtonText}>Review More Cards</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const currentCard = cards[currentIndex];
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Progress counter */}
       <View style={styles.progress}>
         <Text style={styles.progressText}>
-          {completed} reviewed • {cards.length - completed} remaining
+          Card {currentIndex + 1} of {cards.length}  ·  {completed} reviewed
         </Text>
+        <View style={styles.progressBarContainer}>
+          <View
+            style={[
+              styles.progressBarFill,
+              { width: `${((currentIndex) / cards.length) * 100}%` },
+            ]}
+          />
+        </View>
       </View>
 
+      {/* Animated card */}
       <TouchableOpacity
         style={styles.cardContainer}
         onPress={handleFlip}
-        activeOpacity={0.9}
+        activeOpacity={0.95}
       >
-        <View style={[styles.card, isFlipped && styles.cardFlipped]}>
+        {/* Front face */}
+        <Animated.View style={[styles.card, styles.cardFace, frontStyle]}>
           <Text style={styles.cardType}>{currentCard.card_type.toUpperCase()}</Text>
-          <Text style={styles.cardText}>
-            {isFlipped ? currentCard.back : currentCard.front}
-          </Text>
-          <Text style={styles.tapHint}>
-            {isFlipped ? 'Rate your recall below' : 'Tap to reveal answer'}
-          </Text>
-        </View>
+          <Text style={styles.cardText}>{currentCard.front}</Text>
+          <Text style={styles.tapHint}>Tap to reveal answer</Text>
+        </Animated.View>
+
+        {/* Back face */}
+        <Animated.View style={[styles.card, styles.cardFace, styles.cardFlipped, backStyle]}>
+          <Text style={styles.cardType}>{currentCard.card_type.toUpperCase()}</Text>
+          <Text style={styles.cardTextBack}>{currentCard.back}</Text>
+          <Text style={styles.tapHint}>Rate your recall below</Text>
+        </Animated.View>
       </TouchableOpacity>
 
+      {/* Rating buttons */}
       {isFlipped && (
         <View style={styles.ratingContainer}>
           <TouchableOpacity
@@ -205,17 +317,33 @@ const styles = StyleSheet.create({
   },
   progress: {
     paddingVertical: 12,
-    alignItems: 'center',
+    paddingHorizontal: 20,
   },
   progressText: {
     color: '#666',
     fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  progressBarContainer: {
+    height: 3,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#6366f1',
+    borderRadius: 2,
   },
   cardContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  cardFace: {
+    position: 'absolute',
   },
   card: {
     width: width - 40,
@@ -244,6 +372,13 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  cardTextBack: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 34,
   },
   tapHint: {
     position: 'absolute',
@@ -277,6 +412,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
+  // Empty state
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -307,6 +443,66 @@ const styles = StyleSheet.create({
   },
   refreshText: {
     color: '#fff',
+    fontWeight: '600',
+  },
+  // Session summary
+  summaryContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  summaryEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  summaryTitle: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  summarySubtitle: {
+    color: '#999',
+    fontSize: 16,
+    marginBottom: 32,
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
+  summaryItem: {
+    width: 70,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  summaryItemValue: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  summaryItemLabel: {
+    color: '#999',
+    fontSize: 11,
+    marginTop: 4,
+  },
+  summaryAccuracy: {
+    color: '#22c55e',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 32,
+  },
+  summaryButton: {
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  summaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

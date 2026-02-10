@@ -224,3 +224,76 @@ export async function getCategoryProgress(): Promise<Array<{
   }));
 }
 
+// ─── Study Streak ────────────────────────────────────────────
+
+export interface StreakData {
+  streak: number;
+  lastStudyDate: string | null;
+}
+
+/**
+ * Get current study streak
+ */
+export async function getStudyStreak(): Promise<StreakData> {
+  const db = getDatabase();
+  const streakResult = await db.execute(
+    `SELECT value FROM app_settings WHERE key = 'study_streak'`
+  );
+  const dateResult = await db.execute(
+    `SELECT value FROM app_settings WHERE key = 'last_study_date'`
+  );
+
+  const streak = streakResult.rows?.[0]
+    ? parseInt((streakResult.rows[0] as any).value as string, 10)
+    : 0;
+  const lastStudyDate = dateResult.rows?.[0]
+    ? ((dateResult.rows[0] as any).value as string)
+    : null;
+
+  return { streak, lastStudyDate };
+}
+
+/**
+ * Update study streak — call when user studies (chat, flashcard review, etc.)
+ * Returns the updated streak count.
+ */
+export async function updateStudyStreak(): Promise<number> {
+  const db = getDatabase();
+  const { streak, lastStudyDate } = await getStudyStreak();
+
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  if (lastStudyDate === today) {
+    // Already counted today
+    return streak;
+  }
+
+  let newStreak: number;
+  if (lastStudyDate) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+    if (lastStudyDate === yesterdayStr) {
+      // Studied yesterday — extend streak
+      newStreak = streak + 1;
+    } else {
+      // Missed a day — reset
+      newStreak = 1;
+    }
+  } else {
+    // First ever study
+    newStreak = 1;
+  }
+
+  await db.execute(
+    `INSERT OR REPLACE INTO app_settings (key, value) VALUES ('study_streak', ?)`,
+    [String(newStreak)]
+  );
+  await db.execute(
+    `INSERT OR REPLACE INTO app_settings (key, value) VALUES ('last_study_date', ?)`,
+    [today]
+  );
+
+  return newStreak;
+}

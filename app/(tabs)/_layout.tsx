@@ -43,6 +43,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="curriculum"
+        options={{
+          title: 'Curriculum',
+          tabBarIcon: ({ focused }) => <TabIcon name="📖" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',

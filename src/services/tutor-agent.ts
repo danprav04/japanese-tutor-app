@@ -11,6 +11,7 @@ import { saveCheckpoint, getLatestCheckpoint, listCheckpoints } from '../db/chec
 import { createFlashcard } from './card-service';
 import { buildCurriculumContext } from './curriculum-context';
 import { recordAnswer } from './progress-service';
+import { updateStudyStreak } from './progress-service';
 import { searchNodes } from './curriculum-service';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -225,6 +226,13 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     } catch (err) {
       console.warn(`Failed to record progress for "${update.item}":`, err);
     }
+  }
+
+  // Update daily study streak
+  try {
+    await updateStudyStreak();
+  } catch {
+    // Non-critical — don't block the response
   }
 
   // Add assistant message
