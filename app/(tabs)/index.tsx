@@ -17,8 +17,9 @@ import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'reac
 import Markdown from 'react-native-markdown-display';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useAppStore } from '../../src/store/app-store';
-import { sendMessage, loadConversationHistory, createNewThread, initTutor } from '../../src/services/tutor-agent';
+import { sendMessage, loadConversationHistory, createNewThread, initTutor, getThreadDocumentState, clearThreadDocumentState } from '../../src/services/tutor-agent';
 import { listThreads, deleteThread, type ThreadSummary } from '../../src/db/checkpointer';
+import { type DocumentLearningState } from '../../src/services/document-learning-service';
 
 const SENSEI_USER = {
   _id: 2,
@@ -34,6 +35,7 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
+  const [docLearningMode, setDocLearningMode] = useState<DocumentLearningState | null>(null);
   const initialized = useRef(false);
   const tabBarHeight = useBottomTabBarHeight();
 
@@ -78,6 +80,7 @@ export default function ChatScreen() {
     const newId = createNewThread();
     setCurrentThreadId(newId);
     setMessages([]);
+    setDocLearningMode(null);
   }, [setCurrentThreadId]);
 
   const handleOpenHistory = useCallback(async () => {
@@ -95,6 +98,9 @@ export default function ChatScreen() {
       setShowHistory(false);
       setCurrentThreadId(threadId);
       setMessages([]);
+      // Check if the selected thread has active document learning
+      const docState = getThreadDocumentState(threadId);
+      setDocLearningMode(docState);
       await loadThread(threadId);
     },
     [setCurrentThreadId],
@@ -151,6 +157,12 @@ export default function ChatScreen() {
       }
 
       const { text: response, cardsCreated, progressUpdates } = await sendMessage(threadId, userMessage.text);
+
+      // Check if document learning mode was activated
+      const docState = getThreadDocumentState(threadId);
+      if (docState && !docLearningMode) {
+        setDocLearningMode(docState);
+      }
 
       const aiMessage: IMessage = {
         _id: `ai-${Date.now()}`,
@@ -225,10 +237,28 @@ export default function ChatScreen() {
         enabled
         keyboardVerticalOffset={Platform.OS === 'ios' ? tabBarHeight : 0}
       >
+        {/* Document learning mode banner */}
+        {docLearningMode && (
+          <View style={styles.docBanner}>
+            <Text style={styles.docBannerText}>📖 Learning: {docLearningMode.documentName}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                if (currentThreadId && currentThreadId !== 'default') {
+                  clearThreadDocumentState(currentThreadId);
+                }
+                setDocLearningMode(null);
+              }}
+              style={styles.docBannerClose}
+            >
+              <Text style={styles.docBannerCloseText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {messages.length === 0 && (
           <View style={styles.startContainer}>
             <Text style={styles.startText}>How can I help you learn Japanese today?</Text>
-            <Text style={styles.startSubText}>Try asking about grammar, vocab, or just say hello!</Text>
+            <Text style={styles.startSubText}>Try "let's start learning [document name]" to study an uploaded document step by step!</Text>
           </View>
         )}
         <GiftedChat
@@ -644,5 +674,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     paddingTop: 12,
+  },
+  docBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1a1a2e',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a4a',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  docBannerText: {
+    color: '#a5b4fc',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  docBannerClose: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  docBannerCloseText: {
+    color: '#666',
+    fontSize: 16,
   },
 });

@@ -13,6 +13,13 @@ import { buildCurriculumContext } from './curriculum-context';
 import { recordAnswer } from './progress-service';
 import { updateStudyStreak } from './progress-service';
 import { searchNodes } from './curriculum-service';
+import {
+  detectDocumentLearningIntent,
+  resolveDocument,
+  getDocumentLearningContext,
+  getAvailableDocuments,
+  type DocumentLearningState,
+} from './document-learning-service';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -64,9 +71,68 @@ When you quiz the student and they answer, record their result using:
 Use this EVERY time you verify the student's understanding — after quizzes, exercises, or when they use a word/pattern correctly in conversation.
 The "item" must match a title from the curriculum status above. Set "correct" to true if they got it right, false if wrong.`;
 
+// ─── Document Learning System Prompt ─────────────────────────
+
+const DOCUMENT_LEARNING_PROMPT = `You are a friendly and encouraging Japanese language tutor named Sensei.
+
+You are in DOCUMENT LEARNING MODE. The student wants to learn from a specific document.
+Below you will see the document's curriculum items and the student's progress on each.
+
+## Teaching Rules (CRITICAL — follow these strictly)
+1. **Teach ONE item at a time** — never introduce multiple new items in a single message
+2. **Keep responses SHORT** — 3-5 sentences max. Mobile screen, remember!
+3. **Wait for the student's answer** before moving on to the next item
+4. **Start from the 🎯 NEXT ITEM TO TEACH** shown in the document status
+5. **Follow this flow for each item:**
+   a. Introduce the item (what it means, how to read it)
+   b. Give one clear example
+   c. Ask a simple question to check understanding
+   d. If they get it right → mark progress and move to next item
+   e. If they get it wrong → explain again briefly, give another example, re-quiz
+6. **Never dump a list of items** — the student should only see one item at a time
+7. **Celebrate small wins** — when they master an item, acknowledge it! 🎉
+8. When ALL items are mastered, congratulate them and suggest reviewing weak items
+
+## Response Guidelines
+- Keep responses concise (mobile screen)
+- Use emoji sparingly for friendliness (🎌, ✨, 📝)
+- Always show Japanese text alongside English translations
+- For vocab: include reading (furigana), meaning, and one usage example
+- For grammar: explain the pattern and give one example
+- For kanji: show readings (on/kun) and meaning
+
+## Flashcard Generation
+When you teach a NEW vocabulary word, grammar point, or kanji, include a flashcard block at the END of your response:
+[FLASHCARD]{"front":"日本語 text","back":"English meaning (reading)","type":"vocab"}[/FLASHCARD]
+Valid types: vocab, grammar, kanji. Only include ONE flashcard per message.
+
+## Progress Tracking
+When you quiz the student and they answer, record their result using:
+[PROGRESS]{"item":"exact item title from document","correct":true}[/PROGRESS]
+[PROGRESS]{"item":"exact item title from document","correct":false}[/PROGRESS]
+Use this EVERY time you verify the student's understanding.`;
+
 // ─── In-memory conversation cache ────────────────────────────
 
 const conversationCache = new Map<string, ConversationMessage[]>();
+
+// ─── Per-thread document learning state ──────────────────────
+
+const documentLearningState = new Map<string, DocumentLearningState>();
+
+/**
+ * Check if a thread is in document learning mode.
+ */
+export function getThreadDocumentState(threadId: string): DocumentLearningState | null {
+  return documentLearningState.get(threadId) || null;
+}
+
+/**
+ * Clear document learning mode for a thread.
+ */
+export function clearThreadDocumentState(threadId: string): void {
+  documentLearningState.delete(threadId);
+}
 
 // ─── Response Parsing ────────────────────────────────────────
 
@@ -163,6 +229,33 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     conversationCache.set(threadId, messages);
   }
 
+  // ─── Document learning intent detection ──────────────────
+  const docIntent = detectDocumentLearningIntent(userMessage);
+  if (docIntent) {
+    try {
+      const doc = await resolveDocument(docIntent);
+      if (doc) {
+        documentLearningState.set(threadId, {
+          filename: doc.filename,
+          documentName: doc.filename,
+        });
+        console.log(`📖 Document learning mode activated: ${doc.filename}`);
+      } else {
+        // List available documents so the AI can suggest them
+        const available = await getAvailableDocuments();
+        const docNames = available.map((d) => d.filename).join(', ');
+        const hint = available.length > 0
+          ? `Available documents: ${docNames}`
+          : 'No documents have been uploaded yet.';
+        
+        // Add as a system hint in the user message
+        userMessage = `${userMessage}\n\n[System: Document "${docIntent}" was not found. ${hint}]`;
+      }
+    } catch (err) {
+      console.warn('Failed to detect document learning intent:', err);
+    }
+  }
+
   // Add user message
   const userMsg: ConversationMessage = {
     role: 'user',
@@ -177,17 +270,35 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     .map((m) => `${m.role === 'user' ? 'Student' : 'Sensei'}: ${m.content}`)
     .join('\n\n');
 
-  // Build curriculum-aware prompt
-  let curriculumContext = '';
-  try {
-    curriculumContext = await buildCurriculumContext();
-  } catch (err) {
-    console.warn('Failed to load curriculum context:', err);
-  }
+  // ─── Choose prompt based on document learning mode ───────
+  const docState = documentLearningState.get(threadId);
+  let fullPrompt: string;
 
-  const fullPrompt = curriculumContext
-    ? `${SYSTEM_PROMPT}\n\n${curriculumContext}\n\n---\n\n${conversationContext}\n\nSensei:`
-    : `${SYSTEM_PROMPT}\n\n${conversationContext}\n\nSensei:`;
+  if (docState) {
+    // Document learning mode — use focused prompt + document context
+    let docContext = '';
+    try {
+      docContext = await getDocumentLearningContext(docState.filename);
+    } catch (err) {
+      console.warn('Failed to load document learning context:', err);
+    }
+
+    fullPrompt = docContext
+      ? `${DOCUMENT_LEARNING_PROMPT}\n\n${docContext}\n\n---\n\n${conversationContext}\n\nSensei:`
+      : `${DOCUMENT_LEARNING_PROMPT}\n\n${conversationContext}\n\nSensei:`;
+  } else {
+    // Normal mode — use general curriculum context
+    let curriculumContext = '';
+    try {
+      curriculumContext = await buildCurriculumContext();
+    } catch (err) {
+      console.warn('Failed to load curriculum context:', err);
+    }
+
+    fullPrompt = curriculumContext
+      ? `${SYSTEM_PROMPT}\n\n${curriculumContext}\n\n---\n\n${conversationContext}\n\nSensei:`
+      : `${SYSTEM_PROMPT}\n\n${conversationContext}\n\nSensei:`;
+  }
 
   // Generate response
   const rawResponse = await client.generate(fullPrompt);
