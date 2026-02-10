@@ -22,13 +22,10 @@ interface RateLimitError extends Error {
   status?: number;
 }
 
-function isRateLimitError(error: unknown): error is RateLimitError {
-  if (error instanceof Error) {
-    const rateLimitIndicators = ['429', 'rate limit', 'quota exceeded', 'resource exhausted'];
-    const errorStr = error.message.toLowerCase();
-    return rateLimitIndicators.some(indicator => errorStr.includes(indicator));
-  }
-  return false;
+function isRateLimitError(error: unknown): boolean {
+  const errorStr = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  const rateLimitIndicators = ['429', 'rate limit', 'quota exceeded', 'resource exhausted'];
+  return rateLimitIndicators.some(indicator => errorStr.includes(indicator));
 }
 
 export class GeminiClient {
@@ -49,6 +46,8 @@ export class GeminiClient {
 
     if (this.keys.length === 0) {
       console.warn('⚠️ GeminiClient initialized with no API keys');
+    } else {
+      console.log(`🔑 GeminiClient initialized with ${this.keys.length} keys. Model: ${model}`);
     }
   }
 
@@ -57,8 +56,13 @@ export class GeminiClient {
    */
   private rotateKey(): void {
     if (this.keys.length > 1) {
+      const prevIndex = this.currentKeyIndex;
       this.currentKeyIndex = (this.currentKeyIndex + 1) % this.keys.length;
-      console.log(`🔄 Rotated to API key ${this.currentKeyIndex + 1}/${this.keys.length}`);
+      const key = this.keys[this.currentKeyIndex];
+      const masked = key.length > 8 ? `...${key.slice(-4)}` : '***';
+      console.log(`🔄 Rotated API key from index ${prevIndex} to ${this.currentKeyIndex} (ending in ${masked})`);
+    } else {
+      console.warn('⚠️ Cannot rotate key: only 1 key configured.');
     }
   }
 
@@ -69,7 +73,10 @@ export class GeminiClient {
     if (this.keys.length === 0) {
       throw new Error('No API keys configured. Add a key in Settings.');
     }
-    return this.keys[this.currentKeyIndex];
+    const key = this.keys[this.currentKeyIndex];
+    // Log occasionally or on first use could be noisy, but useful for debugging this specific issue
+    // console.log(`Using key index ${this.currentKeyIndex} (ending in ...${key.slice(-4)})`);
+    return key;
   }
 
   /**
@@ -96,15 +103,17 @@ export class GeminiClient {
   /**
    * Extract retry delay from error message or default to exponential backoff
    */
+  /**
+   * Extract retry delay from error message or default to exponential backoff
+   */
   private getRetryDelay(error: unknown, attempt: number): number {
     const defaultDelay = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s...
+    const errorStr = error instanceof Error ? error.message : String(error);
     
-    if (error instanceof Error) {
-      // Look for "Please retry in X s." or similar in the error message
-      const match = error.message.match(/retry in (\d+(\.\d+)?)s/i);
-      if (match && match[1]) {
-        return Math.ceil(parseFloat(match[1]) * 1000) + 500; // Add 500ms buffer
-      }
+    // Look for "Please retry in X s." or similar in the error message
+    const match = errorStr.match(/retry in (\d+(\.\d+)?)s/i);
+    if (match && match[1]) {
+      return Math.ceil(parseFloat(match[1]) * 1000) + 2000; // Add 2000ms buffer for safety
     }
     
     return defaultDelay;
@@ -128,6 +137,14 @@ export class GeminiClient {
           ? `System: ${systemPrompt}\n\nUser: ${prompt}`
           : prompt;
 
+        // Debug: Log estimated token count to verify we aren't blowing the budget
+        try {
+          const { totalTokens } = await model.countTokens(fullPrompt);
+          console.log(`📊 Token Count Estimate: ${totalTokens} tokens`);
+        } catch (e) {
+          console.warn('⚠️ Failed to count tokens:', e);
+        }
+
         const result = await model.generateContent(fullPrompt);
         const response = result.response;
         return response.text();
@@ -135,9 +152,13 @@ export class GeminiClient {
         lastError = error as Error;
         
         if (isRateLimitError(error)) {
+          const key = this.keys[this.currentKeyIndex];
+          const masked = key.length > 8 ? `...${key.slice(-4)}` : '***';
+          console.warn(`⚠️ Rate limit hit on key index ${this.currentKeyIndex} (ending in ${masked})`);
+
           // If we have multiple keys and haven't tried them all yet for this request, rotate
           if (this.keys.length > 1 && currentKeyAttempt < this.keys.length) {
-            console.warn(`⚠️ Rate limit hit on key ${this.currentKeyIndex + 1}, rotating...`);
+            console.warn(`🔄 Rotating to next key...`);
             this.rotateKey();
             currentKeyAttempt++;
             continue; // Retry immediately with new key
@@ -216,7 +237,15 @@ ${schema}
 
 Do not include any other text, markdown, or explanation. Only output the JSON object.`;
 
-    const response = await this.generate(jsonPrompt, undefined, { responseMimeType: 'application/json' });
+    // Gemma models on the API currently do not support JSON mode (responseMimeType: 'application/json')
+    // So we only enable it for non-gemma models (like Gemini)
+    const enableJsonMode = !this.model.startsWith('gemma');
+    
+    const config = enableJsonMode 
+      ? { responseMimeType: 'application/json' }
+      : undefined;
+
+    const response = await this.generate(jsonPrompt, undefined, config);
     
     // Clean up response (although JSON mode usually handles this well)
     // Sometimes models wrap in markdown even in JSON mode

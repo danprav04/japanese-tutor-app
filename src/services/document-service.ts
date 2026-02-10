@@ -53,7 +53,7 @@ const EXTRACTION_SCHEMA = `{
   ]
 }`;
 
-const CHUNK_SIZE = 4000; // characters per Gemini extraction call
+const CHUNK_SIZE = 2000; // characters per Gemini extraction call
 
 function buildExtractionPrompt(text: string, chunkIndex: number, totalChunks: number): string {
   const chunkNote = totalChunks > 1
@@ -120,18 +120,23 @@ export async function processDocument(
   );
 
   // 3. Split into chunks and extract from each
-  const textChunks = splitForExtraction(textContent);
+  // We use 2000 chars as a safe baseline. The splitting logic is now robust enough to handle this.
+  const textChunks = splitForExtraction(textContent, 2000);
   const allItems: ExtractedItem[] = [];
 
   try {
     for (let i = 0; i < textChunks.length; i++) {
       const prompt = buildExtractionPrompt(textChunks[i], i, textChunks.length);
+      
+      // Debug: Log progress
+      console.log(`📄 Processing chunk ${i + 1}/${textChunks.length} (${textChunks[i].length} chars)...`);
+
       const extraction = await client.generateJSON<ExtractionResult>(prompt, EXTRACTION_SCHEMA);
       if (extraction.items && Array.isArray(extraction.items)) {
         allItems.push(...extraction.items);
       }
       
-      // Conservative delay to avoid hammering the API, especially for lower-limit models like Gemma
+      // Standard delay to be polite to the API
       if (i < textChunks.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -267,26 +272,47 @@ export async function getUploadedDocuments(): Promise<Array<{
  * Split text into segments for Gemini extraction calls.
  * Each segment is at most CHUNK_SIZE characters, split on paragraph boundaries.
  */
-function splitForExtraction(text: string): string[] {
-  if (text.length <= CHUNK_SIZE) return [text];
+function splitForExtraction(text: string, chunkSize: number = 2000): string[] {
+  if (text.length <= chunkSize) return [text];
 
-  const paragraphs = text.split(/\n\n+/);
+  // 1. Split by newlines (preserve paragraphs if possible, but prioritize size)
+  const lines = text.split('\n');
   const segments: string[] = [];
   let current = '';
 
-  for (const para of paragraphs) {
-    if (current.length + para.length + 2 > CHUNK_SIZE && current.length > 0) {
-      segments.push(current.trim());
-      current = para;
+  for (const line of lines) {
+    // +1 for the newline check we might add
+    if (current.length + line.length + 1 > chunkSize) {
+      if (current.length > 0) {
+        segments.push(current.trim());
+        current = '';
+      }
+      
+      // If the line itself is massive (larger than chunk size), we MUST hard split it
+      if (line.length > chunkSize) {
+        let remaining = line;
+        while (remaining.length > 0) {
+          if (remaining.length <= chunkSize) {
+            current = remaining; // Start new current with valid remainder
+            remaining = '';
+          } else {
+            // Hard chop
+            segments.push(remaining.slice(0, chunkSize));
+            remaining = remaining.slice(chunkSize);
+          }
+        }
+      } else {
+        current = line;
+      }
     } else {
-      current += (current ? '\n\n' : '') + para;
+      current += (current ? '\n' : '') + line;
     }
   }
 
-  if (current.trim().length > 0) {
+  if (current.length > 0) {
     segments.push(current.trim());
   }
-
+  
   return segments;
 }
 
