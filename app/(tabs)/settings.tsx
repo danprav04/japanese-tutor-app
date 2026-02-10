@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { useFocusEffect } from 'expo-router';
 import { useAppStore, type ModelType } from '../../src/store/app-store';
+import { MODEL_RATES } from '../../src/services/gemini-client';
 import { processDocument, getUploadedDocuments } from '../../src/services/document-service';
 import { resetProgress } from '../../src/services/progress-service';
 
@@ -186,21 +187,31 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>🤖 Model</Text>
 
           <View style={styles.modelOptions}>
-            <TouchableOpacity
-              style={[styles.modelOption, currentModel === 'gemini-3-flash-preview' && styles.modelSelected]}
-              onPress={() => handleModelChange('gemini-3-flash-preview')}
-            >
-              <Text style={styles.modelName}>Gemini 3 Flash (Preview)</Text>
-              <Text style={styles.modelDesc}>Fast, efficient, lower cost</Text>
-            </TouchableOpacity>
+            {(Object.keys(MODEL_RATES) as ModelType[]).map((model) => {
+               const rate = MODEL_RATES[model];
+               const totalRpm = rate.rpm * (apiKeys.length || 1);
+               const totalRpd = rate.rpd * (apiKeys.length || 1);
+               const isSelected = currentModel === model;
 
-            <TouchableOpacity
-              style={[styles.modelOption, currentModel === 'gemini-3-pro-preview' && styles.modelSelected]}
-              onPress={() => handleModelChange('gemini-3-pro-preview')}
-            >
-              <Text style={styles.modelName}>Gemini 3 Pro (Preview)</Text>
-              <Text style={styles.modelDesc}>Advanced reasoning</Text>
-            </TouchableOpacity>
+               return (
+                <TouchableOpacity
+                  key={model}
+                  style={[styles.modelOption, isSelected && styles.modelSelected]}
+                  onPress={() => handleModelChange(model)}
+                >
+                  <View style={styles.modelHeader}>
+                    <Text style={styles.modelName}>{model}</Text>
+                    {isSelected && <View style={styles.selectedBadge} />}
+                  </View>
+                  <Text style={styles.modelDesc}>
+                    Limits: ~{totalRpm} RPM / ~{totalRpd.toLocaleString()} RPD
+                  </Text>
+                  <Text style={styles.modelSubDesc}>
+                    ({apiKeys.length} key{apiKeys.length !== 1 ? 's' : ''} configured)
+                  </Text>
+                </TouchableOpacity>
+               );
+            })}
           </View>
         </View>
 
@@ -338,19 +349,39 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 2,
     borderColor: 'transparent',
+    marginBottom: 8,
   },
   modelSelected: {
     borderColor: '#6366f1',
+    backgroundColor: '#232333',
+  },
+  modelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   modelName: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  selectedBadge: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#6366f1',
   },
   modelDesc: {
-    color: '#666',
+    color: '#aaa',
     fontSize: 13,
     marginTop: 2,
+  },
+  modelSubDesc: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 1,
   },
   uploadButton: {
     backgroundColor: '#1a1a1a',

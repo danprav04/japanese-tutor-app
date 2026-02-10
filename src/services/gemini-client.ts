@@ -5,7 +5,18 @@
 
 import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from '@google/generative-ai';
 
-export type ModelType = 'gemini-3-flash-preview' | 'gemini-3-pro-preview';
+export type ModelType = 
+  | 'gemini-3-flash' 
+  | 'gemini-3-pro' 
+  | 'gemini-2.5-flash' 
+  | 'gemma-3-27b-it';
+
+export const MODEL_RATES: Record<ModelType, { rpm: number; tpm: number; rpd: number }> = {
+  'gemini-3-flash': { rpm: 30, tpm: 1_000_000, rpd: 1_500 },
+  'gemini-3-pro': { rpm: 5, tpm: 250_000, rpd: 50 },
+  'gemini-2.5-flash': { rpm: 15, tpm: 1_000_000, rpd: 1_500 },
+  'gemma-3-27b-it': { rpm: 30, tpm: 500_000, rpd: 14_400 }, // Estimated
+};
 
 interface RateLimitError extends Error {
   status?: number;
@@ -26,7 +37,7 @@ export class GeminiClient {
   private model: ModelType;
   private generationConfig: GenerationConfig;
 
-  constructor(keys: string[], model: ModelType = 'gemini-3-flash-preview') {
+  constructor(keys: string[], model: ModelType = 'gemini-3-flash') {
     this.keys = keys.filter(k => k.trim().length > 0);
     this.model = model;
     this.generationConfig = {
