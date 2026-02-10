@@ -1,9 +1,31 @@
-import { View, Text, StyleSheet, SectionList, TextInput, TouchableOpacity, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, SectionList, TextInput, TouchableOpacity, Dimensions, Alert, ActivityIndicator } from 'react-native';
 import { useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useAppStore } from '../../src/store/app-store';
 import { getNodesWithProgress, deleteNode, type NodeWithProgress } from '../../src/services/curriculum-service';
+import { createFlashcard } from '../../src/services/card-service';
+import { getDatabase } from '../../src/db/database';
+
+interface NodeCard {
+  cardId: string;
+  front: string;
+  back: string;
+}
+
+async function getCardsForNode(nodeId: string): Promise<NodeCard[]> {
+  const db = getDatabase();
+  const result = await db.execute(
+    `SELECT card_id, front, back FROM cards WHERE node_id = ?`,
+    [nodeId]
+  );
+  if (!result.rows) return [];
+  return (result.rows as Record<string, unknown>[]).map((r) => ({
+    cardId: r.card_id as string,
+    front: r.front as string,
+    back: r.back as string,
+  }));
+}
 
 interface Section {
   title: string;
@@ -27,12 +49,49 @@ function getMasteryLabel(score: number): string {
 
 function CurriculumItem({ item, onDelete }: { item: NodeWithProgress; onDelete: (nodeId: string) => void }) {
   const [expanded, setExpanded] = useState(false);
+  const [cards, setCards] = useState<NodeCard[]>([]);
+  const [loadingCards, setLoadingCards] = useState(false);
+  const [generatingCard, setGeneratingCard] = useState(false);
   const content = item.contentPayload as Record<string, string> | null;
+
+  const handleExpand = async () => {
+    const willExpand = !expanded;
+    setExpanded(willExpand);
+    if (willExpand) {
+      setLoadingCards(true);
+      try {
+        const nodeCards = await getCardsForNode(item.nodeId);
+        setCards(nodeCards);
+      } catch {
+        setCards([]);
+      } finally {
+        setLoadingCards(false);
+      }
+    }
+  };
+
+  const handleGenerateCard = async () => {
+    setGeneratingCard(true);
+    try {
+      const front = item.title;
+      const back = content?.meaning
+        ? `${content.meaning}${content.reading ? ' (' + content.reading + ')' : ''}`
+        : item.title;
+      await createFlashcard(front, back, item.type as 'vocab' | 'grammar' | 'kanji', item.nodeId);
+      const nodeCards = await getCardsForNode(item.nodeId);
+      setCards(nodeCards);
+      Alert.alert('✅ Flashcard Created', `Created a flashcard for "${item.title}"`);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to create flashcard.');
+    } finally {
+      setGeneratingCard(false);
+    }
+  };
 
   return (
     <TouchableOpacity
       style={styles.item}
-      onPress={() => setExpanded(!expanded)}
+      onPress={handleExpand}
       activeOpacity={0.7}
     >
       <View style={styles.itemHeader}>
@@ -101,6 +160,39 @@ function CurriculumItem({ item, onDelete }: { item: NodeWithProgress; onDelete: 
           <Text style={styles.detailMeta}>
             {item.attempts} attempts · N{item.jlptLevel}
           </Text>
+
+          {/* Flashcard section */}
+          <View style={styles.flashcardSection}>
+            <Text style={styles.flashcardSectionTitle}>📚 Flashcards</Text>
+            {loadingCards ? (
+              <ActivityIndicator size="small" color="#6366f1" style={{ marginVertical: 8 }} />
+            ) : cards.length > 0 ? (
+              cards.map((card) => (
+                <View key={card.cardId} style={styles.miniCard}>
+                  <Text style={styles.miniCardFront}>{card.front}</Text>
+                  <Text style={styles.miniCardBack}>{card.back}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noCardsText}>No flashcards yet</Text>
+            )}
+            {!loadingCards && (
+              <TouchableOpacity
+                style={styles.generateCardBtn}
+                onPress={handleGenerateCard}
+                disabled={generatingCard}
+              >
+                {generatingCard ? (
+                  <ActivityIndicator size="small" color="#6366f1" />
+                ) : (
+                  <Text style={styles.generateCardText}>
+                    {cards.length > 0 ? '➕ Add Another Flashcard' : '✨ Generate Flashcard'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => onDelete(item.nodeId)}
@@ -397,5 +489,60 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 14,
     fontWeight: '500',
+  },
+  flashcardSection: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#1a1a2e',
+  },
+  flashcardSectionTitle: {
+    color: '#a5b4fc',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  miniCard: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  miniCardFront: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+  },
+  miniCardBack: {
+    color: '#888',
+    fontSize: 13,
+    marginLeft: 8,
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  noCardsText: {
+    color: '#555',
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginBottom: 6,
+  },
+  generateCardBtn: {
+    marginTop: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#1a1a2e',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#6366f1',
+    alignItems: 'center',
+  },
+  generateCardText: {
+    color: '#6366f1',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -1,319 +1,572 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import Svg, { Circle } from 'react-native-svg';
-import { useAppStore } from '../../src/store/app-store';
-import { getOverallMastery, getCategoryProgress, getStudyStreak } from '../../src/services/progress-service';
+import Svg, { Circle, Rect, Line, Text as SvgText } from 'react-native-svg';
+
+import { getOverallMastery, getStudyStreak } from '../../src/services/progress-service';
 import { getCardStats } from '../../src/services/card-service';
+import {
+  getStudySessionSummary,
+  getWeeklyStreak,
+  getTypeBreakdown,
+  getRecentMasteryChanges,
+  type StudySessionSummary,
+  type WeekDay,
+  type TypeBreakdown,
+  type MasteryChange,
+} from '../../src/services/study-stats-service';
 
-interface CategoryData {
-  name: string;
-  mastery: number;
-  total: number;
-  learned: number;
-}
+// ─── Sub-components ──────────────────────────────────────────
 
-function ProgressRing({ progress, size = 120 }: { progress: number; size?: number }) {
+function ProgressRing({ progress, size = 110, label }: { progress: number; size?: number; label?: string }) {
   const strokeWidth = 10;
   const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const strokeDashoffset = circumference - (progress * circumference);
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(1, progress));
+  const strokeDashoffset = circumference * (1 - clamped);
 
   return (
-    <View style={{ width: size, height: size }}>
+    <View style={{ alignItems: 'center' }}>
       <Svg width={size} height={size}>
+        {/* Background circle */}
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#2a2a2a"
+          stroke="#1e1e2e"
           strokeWidth={strokeWidth}
-          fill="transparent"
+          fill="none"
         />
+        {/* Progress arc */}
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#6366f1"
+          stroke={clamped >= 0.95 ? '#22c55e' : clamped >= 0.5 ? '#6366f1' : '#f59e0b'}
           strokeWidth={strokeWidth}
-          fill="transparent"
-          strokeDasharray={`${circumference}`}
+          fill="none"
+          strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          rotation="-90"
+          origin={`${size / 2}, ${size / 2}`}
         />
+        <SvgText
+          x={size / 2}
+          y={size / 2 - 4}
+          textAnchor="middle"
+          alignmentBaseline="central"
+          fill="#fff"
+          fontSize={24}
+          fontWeight="bold"
+        >
+          {Math.round(clamped * 100)}%
+        </SvgText>
+        {label && (
+          <SvgText
+            x={size / 2}
+            y={size / 2 + 18}
+            textAnchor="middle"
+            alignmentBaseline="central"
+            fill="#888"
+            fontSize={11}
+          >
+            {label}
+          </SvgText>
+        )}
       </Svg>
-      <View style={[styles.ringContent, { width: size, height: size }]}>
-        <Text style={styles.ringPercent}>{Math.round(progress * 100)}%</Text>
-        <Text style={styles.ringLabel}>Mastery</Text>
+    </View>
+  );
+}
+
+function StreakCalendar({ days }: { days: WeekDay[] }) {
+  return (
+    <View style={styles.streakRow}>
+      {days.map((day, i) => (
+        <View key={i} style={styles.streakDay}>
+          <View
+            style={[
+              styles.streakDot,
+              day.active ? styles.streakDotActive : styles.streakDotInactive,
+            ]}
+          >
+            {day.active && (
+              <Text style={styles.streakDotCount}>
+                {day.reviewCount > 99 ? '99+' : day.reviewCount}
+              </Text>
+            )}
+          </View>
+          <Text style={[styles.streakDayLabel, day.active && styles.streakDayLabelActive]}>
+            {day.dayLabel}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function TypeProgressBar({ data }: { data: TypeBreakdown }) {
+  const masteredPct = data.total > 0 ? data.mastered / data.total : 0;
+  const learningPct = data.total > 0 ? data.learning / data.total : 0;
+  const iconMap: Record<string, string> = { grammar: '📐', vocab: '📝', kanji: '漢' };
+
+  return (
+    <View style={styles.typeRow}>
+      <View style={styles.typeHeader}>
+        <Text style={styles.typeIcon}>{iconMap[data.type] || '📖'}</Text>
+        <Text style={styles.typeLabel}>{data.type.charAt(0).toUpperCase() + data.type.slice(1)}</Text>
+        <Text style={styles.typeCount}>
+          {data.mastered}/{data.total}
+        </Text>
+      </View>
+      <View style={styles.barBg}>
+        <View
+          style={[
+            styles.barFillMastered,
+            { width: `${Math.round(masteredPct * 100)}%` },
+          ]}
+        />
+        <View
+          style={[
+            styles.barFillLearning,
+            {
+              width: `${Math.round(learningPct * 100)}%`,
+              left: `${Math.round(masteredPct * 100)}%`,
+            },
+          ]}
+        />
+      </View>
+      <Text style={styles.typeAvg}>
+        {Math.round(data.avgMastery * 100)}% avg mastery
+      </Text>
+    </View>
+  );
+}
+
+function StatCard({ value, label, emoji }: { value: string | number; label: string; emoji: string }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statEmoji}>{emoji}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function RecentItem({ item }: { item: MasteryChange }) {
+  const pct = Math.round(item.masteryScore * 100);
+  const color = pct >= 95 ? '#22c55e' : pct >= 50 ? '#6366f1' : pct >= 25 ? '#f59e0b' : '#ef4444';
+
+  return (
+    <View style={styles.recentRow}>
+      <View style={styles.recentInfo}>
+        <Text style={styles.recentTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={styles.recentMeta}>{item.type} · {item.attempts} attempts</Text>
+      </View>
+      <View style={[styles.recentBadge, { backgroundColor: color + '20', borderColor: color }]}>
+        <Text style={[styles.recentPct, { color }]}>{pct}%</Text>
       </View>
     </View>
   );
 }
 
-function CategoryBar({ name, mastery, total, learned }: CategoryData) {
-  return (
-    <View style={styles.categoryItem}>
-      <View style={styles.categoryHeader}>
-        <Text style={styles.categoryName}>{name}</Text>
-        <Text style={styles.categoryStats}>{learned}/{total}</Text>
-      </View>
-      <View style={styles.barContainer}>
-        <View style={[styles.barFill, { width: `${Math.min(mastery * 100, 100)}%` }]} />
-      </View>
-    </View>
-  );
-}
+// ─── Main Screen ─────────────────────────────────────────────
 
 export default function ProgressScreen() {
-  const { isDatabaseReady, totalReviews } = useAppStore();
-  const [overall, setOverall] = useState({ mastery: 0, total: 0, mastered: 0 });
-  const [categories, setCategories] = useState<CategoryData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [overallMastery, setOverallMastery] = useState({ mastery: 0, total: 0, mastered: 0 });
+  const [streak, setStreak] = useState({ streak: 0, lastStudyDate: null as string | null });
   const [cardStats, setCardStats] = useState({ total: 0, newCards: 0, learning: 0, reviewing: 0, dueNow: 0 });
-  const [streak, setStreak] = useState(0);
+  const [sessionSummary, setSessionSummary] = useState<StudySessionSummary | null>(null);
+  const [weekDays, setWeekDays] = useState<WeekDay[]>([]);
+  const [typeBreakdowns, setTypeBreakdowns] = useState<TypeBreakdown[]>([]);
+  const [recentChanges, setRecentChanges] = useState<MasteryChange[]>([]);
 
-  const loadData = useCallback(async () => {
-    if (!isDatabaseReady) return;
-    try {
-      const [overallData, categoryData, cardData, streakData] = await Promise.all([
-        getOverallMastery(),
-        getCategoryProgress(),
-        getCardStats(),
-        getStudyStreak(),
-      ]);
-      setOverall(overallData);
-      setCategories(categoryData);
-      setCardStats(cardData);
-      setStreak(streakData.streak);
-    } catch (err) {
-      console.error('Failed to load progress:', err);
-    }
-  }, [isDatabaseReady]);
-
-  // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [loadData])
+    }, [])
   );
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [mastery, streakData, cards, session, week, types, recent] = await Promise.all([
+        getOverallMastery(),
+        getStudyStreak(),
+        getCardStats(),
+        getStudySessionSummary(),
+        getWeeklyStreak(),
+        getTypeBreakdown(),
+        getRecentMasteryChanges(5),
+      ]);
+      setOverallMastery(mastery);
+      setStreak(streakData);
+      setCardStats(cards);
+      setSessionSummary(session);
+      setWeekDays(week);
+      setTypeBreakdowns(types);
+      setRecentChanges(recent);
+    } catch (e) {
+      console.error('Failed to load progress data:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, styles.center]} edges={['bottom']}>
+        <ActivityIndicator size="large" color="#6366f1" />
+        <Text style={styles.loadingText}>Loading progress...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Overall Progress */}
-        <View style={styles.overallCard}>
-          <ProgressRing progress={overall.mastery} />
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{streak}</Text>
-              <Text style={styles.statLabel}>🔥 Day Streak</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{totalReviews}</Text>
-              <Text style={styles.statLabel}>📝 Reviews</Text>
-            </View>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* ── Overall Mastery ── */}
+        <View style={styles.masterySection}>
+          <ProgressRing progress={overallMastery.mastery} label="Overall" />
+          <View style={styles.masteryStats}>
+            <Text style={styles.masteryTitle}>
+              {overallMastery.mastered} / {overallMastery.total}
+            </Text>
+            <Text style={styles.masterySubtitle}>items mastered</Text>
           </View>
         </View>
 
-        {/* Card Stats */}
+        {/* ── Weekly Streak ── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Flashcard Stats</Text>
-          <View style={styles.cardStatsGrid}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>🔥 Study Streak</Text>
+            <Text style={styles.streakBadge}>
+              {streak.streak} day{streak.streak !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          <StreakCalendar days={weekDays} />
+        </View>
+
+        {/* ── Today's Summary ── */}
+        {sessionSummary && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📅 Today</Text>
+            <View style={styles.statsGrid}>
+              <StatCard
+                emoji="📝"
+                value={sessionSummary.todayReviews}
+                label="Reviews"
+              />
+              <StatCard
+                emoji="✅"
+                value={sessionSummary.todayReviews > 0 ? `${Math.round(sessionSummary.todayAccuracy * 100)}%` : '—'}
+                label="Accuracy"
+              />
+              <StatCard
+                emoji="🧠"
+                value={sessionSummary.todayMasteryGains}
+                label="Learned"
+              />
+              <StatCard
+                emoji="📊"
+                value={sessionSummary.cardsReviewedThisWeek}
+                label="This Week"
+              />
+            </View>
+          </View>
+        )}
+
+        {/* ── Flashcard Stats ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📚 Flashcards</Text>
+          <View style={styles.cardStatsRow}>
             <View style={styles.cardStatItem}>
-              <Text style={styles.cardStatValue}>{cardStats.dueNow}</Text>
+              <Text style={[styles.cardStatNum, { color: '#6366f1' }]}>{cardStats.dueNow}</Text>
               <Text style={styles.cardStatLabel}>Due Now</Text>
             </View>
+            <View style={styles.cardStatDivider} />
             <View style={styles.cardStatItem}>
-              <Text style={styles.cardStatValue}>{cardStats.newCards}</Text>
+              <Text style={[styles.cardStatNum, { color: '#f59e0b' }]}>{cardStats.newCards}</Text>
               <Text style={styles.cardStatLabel}>New</Text>
             </View>
+            <View style={styles.cardStatDivider} />
             <View style={styles.cardStatItem}>
-              <Text style={styles.cardStatValue}>{cardStats.learning}</Text>
+              <Text style={[styles.cardStatNum, { color: '#3b82f6' }]}>{cardStats.learning}</Text>
               <Text style={styles.cardStatLabel}>Learning</Text>
             </View>
+            <View style={styles.cardStatDivider} />
             <View style={styles.cardStatItem}>
-              <Text style={styles.cardStatValue}>{cardStats.reviewing}</Text>
+              <Text style={[styles.cardStatNum, { color: '#22c55e' }]}>{cardStats.reviewing}</Text>
               <Text style={styles.cardStatLabel}>Review</Text>
             </View>
           </View>
         </View>
 
-        {/* Category Breakdown */}
-        {categories.length > 0 && (
+        {/* ── Type Breakdown ── */}
+        {typeBreakdowns.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Curriculum Progress</Text>
-            {categories.map((cat) => (
-              <CategoryBar key={cat.name} {...cat} />
+            <Text style={styles.sectionTitle}>📊 By Category</Text>
+            {typeBreakdowns.map((tb) => (
+              <TypeProgressBar key={tb.type} data={tb} />
             ))}
           </View>
         )}
 
-        {/* Empty state */}
-        {categories.length === 0 && overall.total === 0 && (
-          <View style={styles.emptyInfo}>
-            <Text style={styles.emptyInfoIcon}>📖</Text>
-            <Text style={styles.emptyInfoTitle}>No progress yet</Text>
-            <Text style={styles.emptyInfoText}>
-              Start chatting with Sensei or upload learning materials to begin tracking your progress!
-            </Text>
+        {/* ── Recent Activity ── */}
+        {recentChanges.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>⏱ Recent Activity</Text>
+            {recentChanges.map((item) => (
+              <RecentItem key={item.nodeId} item={item} />
+            ))}
           </View>
         )}
 
-        {/* Explanation */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>📊 How Mastery Works</Text>
-          <Text style={styles.infoText}>
-            Your mastery score is calculated using Bayesian Knowledge Tracing (BKT).
-            It accounts for both correct answers and potential lucky guesses to
-            give you an accurate picture of what you truly know.
-          </Text>
-        </View>
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+// ─── Styles ──────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0a0a0a',
   },
-  content: {
-    padding: 20,
-  },
-  overallCard: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  ringContent: {
-    position: 'absolute',
+  center: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  ringPercent: {
+  loadingText: {
+    color: '#666',
+    marginTop: 12,
+  },
+  content: {
+    padding: 20,
+  },
+  // ── Overall mastery
+  masterySection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+    marginBottom: 28,
+    backgroundColor: '#111118',
+    borderRadius: 20,
+    padding: 24,
+  },
+  masteryStats: {
+    alignItems: 'flex-start',
+  },
+  masteryTitle: {
     color: '#fff',
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  ringLabel: {
-    color: '#666',
-    fontSize: 12,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    marginTop: 20,
-    gap: 40,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  statLabel: {
-    color: '#666',
+  masterySubtitle: {
+    color: '#888',
     fontSize: 14,
-    marginTop: 4,
+    marginTop: 2,
   },
+  // ── Sections
   section: {
     marginBottom: 24,
+    backgroundColor: '#111118',
+    borderRadius: 16,
+    padding: 18,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
   },
   sectionTitle: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 14,
   },
-  cardStatsGrid: {
+  // ── Streak
+  streakBadge: {
+    color: '#f59e0b',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 14,
+  },
+  streakRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  streakDay: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  streakDot: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  streakDotActive: {
+    backgroundColor: '#22c55e20',
+    borderWidth: 2,
+    borderColor: '#22c55e',
+  },
+  streakDotInactive: {
+    backgroundColor: '#1e1e2e',
+    borderWidth: 1,
+    borderColor: '#2a2a3a',
+  },
+  streakDotCount: {
+    color: '#22c55e',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  streakDayLabel: {
+    color: '#555',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  streakDayLabelActive: {
+    color: '#22c55e',
+  },
+  // ── Stats grid
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
-  cardStatItem: {
+  statCard: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    minWidth: '40%',
+    backgroundColor: '#0a0a14',
     borderRadius: 12,
     padding: 14,
     alignItems: 'center',
   },
-  cardStatValue: {
+  statEmoji: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  statValue: {
     color: '#fff',
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  statLabel: {
+    color: '#888',
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  // ── Card stats row
+  cardStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  cardStatNum: {
+    fontSize: 22,
+    fontWeight: '800',
   },
   cardStatLabel: {
-    color: '#666',
+    color: '#888',
     fontSize: 11,
-    marginTop: 4,
+    marginTop: 3,
+    fontWeight: '600',
   },
-  categoryItem: {
-    marginBottom: 16,
+  cardStatDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#2a2a3a',
   },
-  categoryHeader: {
+  // ── Type breakdown
+  typeRow: {
+    marginBottom: 14,
+  },
+  typeHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
+    marginBottom: 6,
   },
-  categoryName: {
+  typeIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  typeLabel: {
     color: '#fff',
     fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
   },
-  categoryStats: {
-    color: '#666',
-    fontSize: 14,
+  typeCount: {
+    color: '#888',
+    fontSize: 13,
+    fontWeight: '600',
   },
-  barContainer: {
+  barBg: {
     height: 8,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#1e1e2e',
     borderRadius: 4,
     overflow: 'hidden',
+    position: 'relative',
   },
-  barFill: {
+  barFillMastered: {
+    position: 'absolute',
+    height: '100%',
+    backgroundColor: '#22c55e',
+    borderRadius: 4,
+  },
+  barFillLearning: {
+    position: 'absolute',
     height: '100%',
     backgroundColor: '#6366f1',
     borderRadius: 4,
   },
-  emptyInfo: {
-    alignItems: 'center',
-    padding: 24,
-    marginBottom: 24,
-  },
-  emptyInfoIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyInfoTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  emptyInfoText: {
+  typeAvg: {
     color: '#666',
-    fontSize: 14,
-    textAlign: 'center',
+    fontSize: 11,
+    marginTop: 4,
   },
-  infoCard: {
-    backgroundColor: '#1a1a2e',
-    borderRadius: 16,
-    padding: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#6366f1',
+  // ── Recent activity
+  recentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a2a',
   },
-  infoTitle: {
+  recentInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  recentTitle: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
+    fontSize: 15,
+    fontWeight: '500',
   },
-  infoText: {
-    color: '#999',
+  recentMeta: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  recentBadge: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  recentPct: {
     fontSize: 14,
-    lineHeight: 22,
+    fontWeight: '700',
   },
 });

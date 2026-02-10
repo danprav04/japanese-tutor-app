@@ -29,6 +29,7 @@ interface AppState {
   studyStreak: number;
   totalReviews: number;
   cardsDueCount: number;
+  dailyGoal: number;
 
   // Actions
   setApiKeys: (keys: string[]) => void;
@@ -41,12 +42,14 @@ interface AppState {
   setStudyStreak: (streak: number) => void;
   setTotalReviews: (count: number) => void;
   setCardsDueCount: (count: number) => void;
+  setDailyGoal: (goal: number) => void;
   loadFromStorage: () => Promise<void>;
   persistApiKeys: () => Promise<void>;
 }
 
 const API_KEYS_STORAGE = 'gemini_api_keys';
 const MODEL_STORAGE = 'selected_model';
+const DAILY_GOAL_STORAGE = 'daily_goal';
 
 export const useAppStore = create<AppState>((set, get) => ({
   // Initial state
@@ -59,6 +62,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   studyStreak: 0,
   totalReviews: 0,
   cardsDueCount: 0,
+  dailyGoal: 10,
 
   // Actions
   setApiKeys: (keys) => {
@@ -99,14 +103,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTotalReviews: (count) => set({ totalReviews: count }),
   setCardsDueCount: (count) => set({ cardsDueCount: count }),
 
+  setDailyGoal: (goal) => {
+    set({ dailyGoal: goal });
+    SecureStore.setItemAsync(DAILY_GOAL_STORAGE, String(goal)).catch(console.error);
+  },
+
   loadFromStorage: async () => {
     try {
-      const [storedKeys, storedModel] = await Promise.all([
+      const [storedKeys, storedModel, storedGoal] = await Promise.all([
         SecureStore.getItemAsync(API_KEYS_STORAGE),
         SecureStore.getItemAsync(MODEL_STORAGE),
+        SecureStore.getItemAsync(DAILY_GOAL_STORAGE),
       ]);
 
       const apiKeys = storedKeys ? JSON.parse(storedKeys) : [];
+      const dailyGoal = storedGoal ? parseInt(storedGoal, 10) : 10;
       let currentModel = (storedModel as ModelType) || 'gemini-3-flash-preview';
       
       // Validate model name (in case old invalid name is stored)
@@ -118,6 +129,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({
         apiKeys,
         currentModel,
+        dailyGoal: isNaN(dailyGoal) ? 10 : dailyGoal,
         isGeminiReady: apiKeys.length > 0,
       });
     } catch (error) {

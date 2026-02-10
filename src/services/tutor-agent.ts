@@ -9,7 +9,7 @@
 import { initGeminiClient, getGeminiClient, type ModelType } from './gemini-client';
 import { saveCheckpoint, getLatestCheckpoint, listCheckpoints } from '../db/checkpointer';
 import { createFlashcard } from './card-service';
-import { buildCurriculumContext } from './curriculum-context';
+import { buildCurriculumContext, getReviewContext } from './curriculum-context';
 import { recordAnswer } from './progress-service';
 import { updateStudyStreak } from './progress-service';
 import { searchNodes } from './curriculum-service';
@@ -63,6 +63,17 @@ When you teach a NEW vocabulary word, grammar point, or kanji, include a flashca
 [FLASHCARD]{"front":"日本語 text","back":"English meaning (reading)","type":"vocab"}[/FLASHCARD]
 Valid types: vocab, grammar, kanji. You may include multiple blocks.
 Do NOT include flashcards for items already in the curriculum (check the status below).
+
+## Exercise Generation (Quiz Mode)
+When the student asks to practice, be quizzed, or says "quiz me", generate exercises using this format:
+[EXERCISE]{"type":"fill-blank","question":"私は毎日コーヒーを___ます。","hint":"to drink","answer":"飲み","item":"飲む"}[/EXERCISE]
+[EXERCISE]{"type":"translate","question":"I go to school every day.","answer":"毎日学校に行きます。","item":"行く"}[/EXERCISE]
+[EXERCISE]{"type":"choose","question":"What is the reading of 食べる?","options":["たべる","のべる","くべる"],"answer":"たべる","item":"食べる"}[/EXERCISE]
+Valid types: fill-blank, translate, choose.
+- "item" must match a curriculum title for progress tracking
+- Give ONE exercise at a time, wait for the student to answer
+- After they answer, provide Socratic feedback (explain WHY, not just right/wrong)
+- Then offer the next exercise or ask if they want to continue
 
 ## Progress Tracking
 When you quiz the student and they answer, record their result using:
@@ -147,6 +158,15 @@ interface ParsedProgress {
   correct: boolean;
 }
 
+export interface ParsedExercise {
+  type: 'fill-blank' | 'translate' | 'choose';
+  question: string;
+  hint?: string;
+  options?: string[];
+  answer: string;
+  item: string;
+}
+
 function parseFlashcards(response: string): { cleanText: string; cards: ParsedFlashcard[] } {
   const cards: ParsedFlashcard[] = [];
   const regex = /\[FLASHCARD\](\{[^]*?\})\[\/FLASHCARD\]/g;
@@ -190,6 +210,34 @@ function parseProgressMarkers(response: string): { cleanText: string; updates: P
   return { cleanText, updates };
 }
 
+function parseExercises(response: string): { cleanText: string; exercises: ParsedExercise[] } {
+  const exercises: ParsedExercise[] = [];
+  const regex = /\[EXERCISE\](\{[^]*?\})\[\/EXERCISE\]/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(response)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      const validTypes = ['fill-blank', 'translate', 'choose'];
+      if (parsed.question && parsed.answer && validTypes.includes(parsed.type)) {
+        exercises.push({
+          type: parsed.type,
+          question: parsed.question,
+          hint: parsed.hint,
+          options: parsed.options,
+          answer: parsed.answer,
+          item: parsed.item || '',
+        });
+      }
+    } catch {
+      // Skip malformed exercise JSON
+    }
+  }
+
+  const cleanText = response.replace(/\[EXERCISE\]\{[^]*?\}\[\/EXERCISE\]/g, '').trim();
+  return { cleanText, exercises };
+}
+
 // ─── Public API ──────────────────────────────────────────────
 
 /**
@@ -218,6 +266,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   text: string;
   cardsCreated: number;
   progressUpdates: number;
+  exercises: ParsedExercise[];
 }> {
   const client = getGeminiClient();
 
@@ -287,17 +336,23 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
       ? `${DOCUMENT_LEARNING_PROMPT}\n\n${docContext}\n\n---\n\n${conversationContext}\n\nSensei:`
       : `${DOCUMENT_LEARNING_PROMPT}\n\n${conversationContext}\n\nSensei:`;
   } else {
-    // Normal mode — use general curriculum context
+    // Normal mode — use general curriculum context + review context
     let curriculumContext = '';
+    let reviewContext = '';
     try {
-      curriculumContext = await buildCurriculumContext();
+      [curriculumContext, reviewContext] = await Promise.all([
+        buildCurriculumContext(),
+        getReviewContext(),
+      ]);
     } catch (err) {
-      console.warn('Failed to load curriculum context:', err);
+      console.warn('Failed to load curriculum/review context:', err);
     }
 
-    fullPrompt = curriculumContext
-      ? `${SYSTEM_PROMPT}\n\n${curriculumContext}\n\n---\n\n${conversationContext}\n\nSensei:`
-      : `${SYSTEM_PROMPT}\n\n${conversationContext}\n\nSensei:`;
+    const contextParts = [SYSTEM_PROMPT, curriculumContext, reviewContext]
+      .filter(Boolean)
+      .join('\n\n');
+
+    fullPrompt = `${contextParts}\n\n---\n\n${conversationContext}\n\nSensei:`;
   }
 
   // Generate response
@@ -308,7 +363,10 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
 
   // Parse embedded progress markers
   const { cleanText: afterProgress, updates } = parseProgressMarkers(afterFlashcards || rawResponse);
-  const response = afterProgress || afterFlashcards || rawResponse;
+
+  // Parse embedded exercises
+  const { cleanText: afterExercises, exercises } = parseExercises(afterProgress || afterFlashcards || rawResponse);
+  const response = afterExercises || afterProgress || afterFlashcards || rawResponse;
 
   // Auto-create flashcards
   let cardsCreated = 0;
@@ -363,7 +421,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     console.warn('Failed to save conversation checkpoint:', err);
   }
 
-  return { text: response, cardsCreated, progressUpdates };
+  return { text: response, cardsCreated, progressUpdates, exercises };
 }
 
 /**

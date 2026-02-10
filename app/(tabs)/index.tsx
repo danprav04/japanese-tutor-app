@@ -17,7 +17,7 @@ import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'reac
 import Markdown from 'react-native-markdown-display';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useAppStore } from '../../src/store/app-store';
-import { sendMessage, loadConversationHistory, createNewThread, initTutor, getThreadDocumentState, clearThreadDocumentState } from '../../src/services/tutor-agent';
+import { sendMessage, loadConversationHistory, createNewThread, initTutor, getThreadDocumentState, clearThreadDocumentState, type ParsedExercise } from '../../src/services/tutor-agent';
 import { listThreads, deleteThread, type ThreadSummary } from '../../src/db/checkpointer';
 import { type DocumentLearningState } from '../../src/services/document-learning-service';
 
@@ -156,7 +156,7 @@ export default function ChatScreen() {
         setCurrentThreadId(threadId);
       }
 
-      const { text: response, cardsCreated, progressUpdates } = await sendMessage(threadId, userMessage.text);
+      const { text: response, cardsCreated, progressUpdates, exercises } = await sendMessage(threadId, userMessage.text);
 
       // Check if document learning mode was activated
       const docState = getThreadDocumentState(threadId);
@@ -196,6 +196,30 @@ export default function ChatScreen() {
         setTimeout(() => {
           setMessages((prev) => GiftedChat.append(prev, [progressNotif]));
         }, cardsCreated > 0 ? 1000 : 500);
+      }
+
+      // Display exercise cards inline
+      if (exercises.length > 0) {
+        const exerciseTexts = exercises.map((ex: ParsedExercise) => {
+          const typeEmoji = ex.type === 'fill-blank' ? '✏️' : ex.type === 'translate' ? '🔄' : '🔘';
+          let text = `${typeEmoji} **${ex.type === 'fill-blank' ? 'Fill in the Blank' : ex.type === 'translate' ? 'Translate' : 'Choose the Answer'}**\n\n`;
+          text += `${ex.question}\n`;
+          if (ex.hint) text += `\n💡 Hint: *${ex.hint}*`;
+          if (ex.options && ex.options.length > 0) {
+            text += '\n' + ex.options.map((o, i) => `${['A', 'B', 'C', 'D'][i]}. ${o}`).join('\n');
+          }
+          return text;
+        }).join('\n\n---\n\n');
+
+        const exerciseMsg: IMessage = {
+          _id: `exercise-${Date.now()}`,
+          text: exerciseTexts,
+          createdAt: new Date(),
+          user: SENSEI_USER,
+        };
+        setTimeout(() => {
+          setMessages((prev) => GiftedChat.append(prev, [exerciseMsg]));
+        }, cardsCreated > 0 || progressUpdates > 0 ? 1500 : 500);
       }
     } catch (error) {
       const errorMsg: IMessage = {
