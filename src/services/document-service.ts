@@ -2,13 +2,13 @@
  * Document Service
  *
  * Processes uploaded documents (PDF, TXT, MD) by:
- * 1. Reading file content from the device
- * 2. Sending to Gemini for structured extraction
+ * 1. Reading file content from the device (SDK 54 File API)
+ * 2. Sending to Gemini for structured extraction (chunked for long docs)
  * 3. Inserting extracted items into the curriculum
  * 4. Creating flashcards for each extracted item
  */
 
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system/next';
 import { getDatabase } from '../db/database';
 import { getGeminiClient } from './gemini-client';
 import { addNode } from './curriculum-service';
@@ -52,9 +52,15 @@ const EXTRACTION_SCHEMA = `{
   ]
 }`;
 
-function buildExtractionPrompt(text: string): string {
-  return `Analyze the following Japanese learning material and extract all vocabulary, grammar points, and kanji into structured data.
+const CHUNK_SIZE = 15000; // characters per Gemini extraction call
 
+function buildExtractionPrompt(text: string, chunkIndex: number, totalChunks: number): string {
+  const chunkNote = totalChunks > 1
+    ? `\n(This is section ${chunkIndex + 1} of ${totalChunks} from the document.)\n`
+    : '';
+
+  return `Analyze the following Japanese learning material and extract all vocabulary, grammar points, and kanji into structured data.
+${chunkNote}
 For each item:
 - Identify the type (vocab, grammar, or kanji)
 - Estimate the JLPT level (5 = easiest, 1 = hardest)
@@ -62,10 +68,11 @@ For each item:
 - Provide a clear English meaning
 - Give an example sentence with translation
 - For kanji: include onyomi and kunyomi readings
+- For grammar: the title should be the grammar pattern (e.g. "〜ている", "〜たら")
 
 Material to analyze:
 ---
-${text.slice(0, 8000)}
+${text}
 ---
 
 Extract as many items as possible (up to 30). Focus on the most useful and common items first.`;
@@ -86,10 +93,11 @@ export async function processDocument(
   const client = getGeminiClient();
   const db = getDatabase();
 
-  // 1. Read file content
+  // 1. Read file content using SDK 54 File API
   let textContent: string;
   try {
-    textContent = await FileSystem.readAsStringAsync(fileUri);
+    const file = new File(fileUri);
+    textContent = await file.text();
   } catch (err) {
     throw new Error(`Failed to read file: ${err instanceof Error ? err.message : 'Unknown error'}`);
   }
@@ -105,13 +113,19 @@ export async function processDocument(
     [documentId, fileName, fileType]
   );
 
-  // 3. Call Gemini for structured extraction
-  let extraction: ExtractionResult;
+  // 3. Split into chunks and extract from each
+  const textChunks = splitForExtraction(textContent);
+  const allItems: ExtractedItem[] = [];
+
   try {
-    const prompt = buildExtractionPrompt(textContent);
-    extraction = await client.generateJSON<ExtractionResult>(prompt, EXTRACTION_SCHEMA);
+    for (let i = 0; i < textChunks.length; i++) {
+      const prompt = buildExtractionPrompt(textChunks[i], i, textChunks.length);
+      const extraction = await client.generateJSON<ExtractionResult>(prompt, EXTRACTION_SCHEMA);
+      if (extraction.items && Array.isArray(extraction.items)) {
+        allItems.push(...extraction.items);
+      }
+    }
   } catch (err) {
-    // Mark as failed
     await db.execute(
       `UPDATE documents SET processed = -1 WHERE document_id = ?`,
       [documentId]
@@ -119,7 +133,7 @@ export async function processDocument(
     throw new Error(`AI extraction failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
   }
 
-  if (!extraction.items || !Array.isArray(extraction.items) || extraction.items.length === 0) {
+  if (allItems.length === 0) {
     await db.execute(
       `UPDATE documents SET processed = -1 WHERE document_id = ?`,
       [documentId]
@@ -128,20 +142,27 @@ export async function processDocument(
   }
 
   // 4. Chunk text into document_chunks for future RAG
-  const chunks = chunkText(textContent);
-  for (let i = 0; i < chunks.length; i++) {
+  const ragChunks = chunkText(textContent);
+  for (let i = 0; i < ragChunks.length; i++) {
     await db.execute(
       `INSERT INTO document_chunks (document_id, content_text, chunk_index) VALUES (?, ?, ?)`,
-      [documentId, chunks[i], i]
+      [documentId, ragChunks[i], i]
     );
   }
 
-  // 5. Insert extracted items into curriculum + create flashcards
+  // 5. Deduplicate extracted items by title
+  const seen = new Set<string>();
+  const uniqueItems = allItems.filter((item) => {
+    if (!item.title || seen.has(item.title)) return false;
+    seen.add(item.title);
+    return true;
+  });
+
+  // 6. Insert extracted items into curriculum + create flashcards
   let importedCount = 0;
 
-  for (const item of extraction.items) {
+  for (const item of uniqueItems) {
     try {
-      // Validate required fields
       if (!item.title || !item.type || !item.meaning) continue;
       const validTypes = ['vocab', 'grammar', 'kanji'];
       if (!validTypes.includes(item.type)) continue;
@@ -158,7 +179,6 @@ export async function processDocument(
         contentPayload.kunyomi = item.kunyomi;
       }
 
-      // Create curriculum node
       const node = await addNode(
         item.title,
         item.type,
@@ -167,7 +187,6 @@ export async function processDocument(
         fileName,
       );
 
-      // Create flashcard
       let front: string;
       let back: string;
 
@@ -178,13 +197,12 @@ export async function processDocument(
         front = item.title;
         back = `${item.meaning}${item.reading ? '\n(' + item.reading + ')' : ''}`;
       } else {
+        // grammar — front is the pattern, back is explanation + example
         front = item.title;
-        back = `${item.meaning}\n${item.example ?? ''}`;
+        back = `${item.meaning}${item.example ? '\n例: ' + item.example : ''}`;
       }
 
       await createFlashcard(front, back, item.type, node.nodeId);
-
-      // Initialize progress
       await initializeProgress(node.nodeId, true);
 
       importedCount++;
@@ -193,10 +211,10 @@ export async function processDocument(
     }
   }
 
-  // 6. Mark document as processed
+  // 7. Mark document as processed
   await db.execute(
     `UPDATE documents SET processed = 1, total_chunks = ? WHERE document_id = ?`,
-    [chunks.length, documentId]
+    [ragChunks.length, documentId]
   );
 
   return importedCount;
@@ -232,6 +250,33 @@ export async function getUploadedDocuments(): Promise<Array<{
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
+
+/**
+ * Split text into segments for Gemini extraction calls.
+ * Each segment is at most CHUNK_SIZE characters, split on paragraph boundaries.
+ */
+function splitForExtraction(text: string): string[] {
+  if (text.length <= CHUNK_SIZE) return [text];
+
+  const paragraphs = text.split(/\n\n+/);
+  const segments: string[] = [];
+  let current = '';
+
+  for (const para of paragraphs) {
+    if (current.length + para.length + 2 > CHUNK_SIZE && current.length > 0) {
+      segments.push(current.trim());
+      current = para;
+    } else {
+      current += (current ? '\n\n' : '') + para;
+    }
+  }
+
+  if (current.trim().length > 0) {
+    segments.push(current.trim());
+  }
+
+  return segments;
+}
 
 /**
  * Split text into ~500-token chunks with sentence boundary awareness.

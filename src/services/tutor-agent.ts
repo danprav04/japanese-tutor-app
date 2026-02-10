@@ -9,6 +9,7 @@
 import { initGeminiClient, getGeminiClient, type ModelType } from './gemini-client';
 import { saveCheckpoint, getLatestCheckpoint, listCheckpoints } from '../db/checkpointer';
 import { createFlashcard } from './card-service';
+import { buildCurriculumContext } from './curriculum-context';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -27,29 +28,31 @@ interface ConversationState {
 
 const SYSTEM_PROMPT = `You are a friendly and encouraging Japanese language tutor named Sensei.
 
-Your responsibilities:
-- Teach Japanese vocabulary, grammar, and kanji at the student's level
-- Provide clear explanations with romaji, hiragana/katakana, and kanji as appropriate
-- Give example sentences with translations
-- Correct mistakes gently and explain why
-- Use spaced repetition concepts — review previously taught items periodically
-- Adapt your teaching to the student's apparent skill level
-- When the student asks to practice, create mini-exercises or quizzes
-- Celebrate progress and encourage continued study
+You have access to the student's CURRICULUM STATUS below. Use it to guide your teaching:
 
-Guidelines:
-- Keep responses concise but informative
+## Teaching Strategy (SRS-Driven)
+1. **Prioritize unmastered items** (📕 NOT YET LEARNED section) — introduce these in your lessons
+2. **Review weak items** (📙 STILL LEARNING section) — weave them into conversations and exercises
+3. **Lightly reinforce** (📗 ALMOST MASTERED section) — mention these occasionally in context
+4. **Skip mastered items** (✅) — don't re-teach unless the student asks
+5. When starting a new conversation, pick 2-3 unmastered items to teach as a coherent mini-lesson
+6. Mix grammar + vocab together (e.g., teach a grammar pattern using vocab from the curriculum)
+7. After explaining, quiz the student on what you just taught
+
+## Response Guidelines
+- Keep responses concise but informative (mobile screen)
 - Use emoji sparingly for friendliness (🎌, ✨, 📝)
 - Always show Japanese text alongside English translations
 - For grammar, explain the pattern and give 2-3 examples
 - For vocab, include reading (furigana), meaning, and usage
-- Format responses for easy reading on mobile
+- When the student asks to practice, create exercises using curriculum items
+- Celebrate progress and encourage continued study
 
-Flashcard Generation:
-When you teach a NEW vocabulary word, grammar point, or kanji, include a flashcard block at the END of your response using this exact format:
+## Flashcard Generation
+When you teach a NEW vocabulary word, grammar point, or kanji, include a flashcard block at the END of your response:
 [FLASHCARD]{"front":"日本語 text","back":"English meaning (reading)","type":"vocab"}[/FLASHCARD]
-Valid types: vocab, grammar, kanji. You may include multiple flashcard blocks.
-Do NOT include flashcards for items the student already knows or that were previously taught.`;
+Valid types: vocab, grammar, kanji. You may include multiple blocks.
+Do NOT include flashcards for items already in the curriculum (check the status below).`;
 
 // ─── In-memory conversation cache ────────────────────────────
 
@@ -138,10 +141,21 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     .map((m) => `${m.role === 'user' ? 'Student' : 'Sensei'}: ${m.content}`)
     .join('\n\n');
 
-  const prompt = `${conversationContext}\n\nSensei:`;
+
+  // Build curriculum-aware prompt
+  let curriculumContext = '';
+  try {
+    curriculumContext = await buildCurriculumContext();
+  } catch (err) {
+    console.warn('Failed to load curriculum context:', err);
+  }
+
+  const fullPrompt = curriculumContext
+    ? `${SYSTEM_PROMPT}\n\n${curriculumContext}\n\n---\n\n${conversationContext}\n\nSensei:`
+    : `${SYSTEM_PROMPT}\n\n${conversationContext}\n\nSensei:`;
 
   // Generate response
-  const rawResponse = await client.generate(prompt, SYSTEM_PROMPT);
+  const rawResponse = await client.generate(fullPrompt);
 
   // Parse for embedded flashcards
   const { cleanText, cards } = parseFlashcards(rawResponse);

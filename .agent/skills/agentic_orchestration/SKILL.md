@@ -26,12 +26,19 @@ File: `src/db/checkpointer.ts`
 
 ### System Prompt Design
 The system prompt (`SYSTEM_PROMPT` in `tutor-agent.ts`) defines Sensei's persona:
-- Friendly and encouraging tone
-- Mix of English and Japanese adapted to student level
-- Always show furigana for kanji
-- Include example sentences with translations
-- Correct mistakes gently
-- Mobile-optimized formatting
+- SRS-driven teaching: prioritizes unmastered items, reviews weak items, skips mastered
+- Curriculum context injected into every prompt via `buildCurriculumContext()`
+- Friendly and encouraging tone with mobile-optimized formatting
+- Flashcard generation via `[FLASHCARD]{...}[/FLASHCARD]` markers
+
+### Curriculum-Aware Prompting
+File: `src/services/curriculum-context.ts`
+
+On every message, `sendMessage()` calls `buildCurriculumContext()` which:
+1. Joins `curriculum_nodes` with `user_progress` to get mastery scores
+2. Groups items into bands: Unlearned (<0.3), Learning (0.3-0.7), Familiar (0.7-0.95), Mastered (≥0.95)
+3. Formats a text block listing unlearned items in detail for the AI to teach
+4. Injects this into the prompt before conversation history
 
 ## Gemini Multi-Key Client
 File: `src/services/gemini-client.ts`
@@ -53,8 +60,8 @@ private rotateKey(): void {
 | `embed(text)` | Text embeddings via `text-embedding-004` model |
 
 ### Models
-- `gemini-3-flash` — fast, lower cost (default)
-- `gemini-3-pro` — advanced reasoning
+- `gemini-3-flash-preview` — fast, lower cost (default)
+- `gemini-3-pro-preview` — advanced reasoning
 
 ## Hermes Engine Polyfills
 File: `src/utils/polyfills.ts` — **must be imported first** in `index.tsx`.
@@ -72,6 +79,23 @@ File: `src/utils/polyfills.ts` — **must be imported first** in `index.tsx`.
 - `ReadableStream` requires `as any` cast due to type mismatch with global.
 - If streaming is unstable on a device, fall back to `generate()` (non-streaming).
 
+## Document Upload Pipeline
+File: `src/services/document-service.ts`
+
+1. User picks file via `expo-document-picker` (Settings tab)
+2. Read content using SDK 54 `new File(uri).text()` (not legacy `readAsStringAsync`)
+3. Split long docs into 15k-char chunks for parallel Gemini extraction
+4. Each chunk sent to `generateJSON()` with structured extraction prompt
+5. Deduplicate extracted items, insert as curriculum nodes + flashcards
+6. Raw text chunked into `document_chunks` table for future RAG
+
+## Generative UI (Cards from Chat)
+The tutor generates flashcards during conversation:
+1. System prompt instructs `[FLASHCARD]{...}[/FLASHCARD]` output format
+2. `parseFlashcards()` extracts JSON from response, strips markers
+3. `card-service.createFlashcard()` persists to database
+4. Chat screen shows system message: "📝 X flashcards created!"
+
 ## Future: Multi-Agent Architecture
 Planned supervisor-worker topology (not yet implemented):
 - **Supervisor (Router)**: Routes user intent to specialist agents
@@ -79,8 +103,3 @@ Planned supervisor-worker topology (not yet implemented):
 - **RAG Agent**: Vector searches uploaded material chunks
 - **Linguistic Analyst**: Tokenizes student input to update BKT models
 
-## Generative UI (Cards from Chat)
-The tutor can generate flashcards during conversation:
-1. Agent outputs structured JSON (front, back, type)
-2. `card-service.createFlashcard()` persists to database
-3. Cards appear in the Review tab on next focus
