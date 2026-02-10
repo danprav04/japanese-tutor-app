@@ -19,15 +19,18 @@ export interface Checkpoint {
 /**
  * Save a checkpoint for a given thread
  */
-export function saveCheckpoint(
+/**
+ * Save a checkpoint for a given thread
+ */
+export async function saveCheckpoint(
   threadId: string,
   checkpointId: string,
   data: Record<string, unknown>,
   parentCheckpointId?: string,
   metadata?: Record<string, unknown>
-): void {
+): Promise<void> {
   const db = getDatabase();
-  db.execute(
+  await db.execute(
     `INSERT OR REPLACE INTO checkpoints (thread_id, checkpoint_id, parent_checkpoint_id, checkpoint_data, metadata)
      VALUES (?, ?, ?, ?, ?)`,
     [
@@ -43,9 +46,9 @@ export function saveCheckpoint(
 /**
  * Get the latest checkpoint for a thread
  */
-export function getLatestCheckpoint(threadId: string): Checkpoint | null {
+export async function getLatestCheckpoint(threadId: string): Promise<Checkpoint | null> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT thread_id, checkpoint_id, parent_checkpoint_id, checkpoint_data, metadata, created_at
      FROM checkpoints
      WHERE thread_id = ?
@@ -58,7 +61,7 @@ export function getLatestCheckpoint(threadId: string): Checkpoint | null {
     return null;
   }
 
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   return {
     threadId: row.thread_id as string,
     checkpointId: row.checkpoint_id as string,
@@ -72,9 +75,9 @@ export function getLatestCheckpoint(threadId: string): Checkpoint | null {
 /**
  * Get a specific checkpoint by ID
  */
-export function getCheckpoint(threadId: string, checkpointId: string): Checkpoint | null {
+export async function getCheckpoint(threadId: string, checkpointId: string): Promise<Checkpoint | null> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT thread_id, checkpoint_id, parent_checkpoint_id, checkpoint_data, metadata, created_at
      FROM checkpoints
      WHERE thread_id = ? AND checkpoint_id = ?`,
@@ -85,7 +88,7 @@ export function getCheckpoint(threadId: string, checkpointId: string): Checkpoin
     return null;
   }
 
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   return {
     threadId: row.thread_id as string,
     checkpointId: row.checkpoint_id as string,
@@ -99,9 +102,9 @@ export function getCheckpoint(threadId: string, checkpointId: string): Checkpoin
 /**
  * List all checkpoints for a thread (ordered by creation time)
  */
-export function listCheckpoints(threadId: string, limit: number = 10): Checkpoint[] {
+export async function listCheckpoints(threadId: string, limit: number = 10): Promise<Checkpoint[]> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT thread_id, checkpoint_id, parent_checkpoint_id, checkpoint_data, metadata, created_at
      FROM checkpoints
      WHERE thread_id = ?
@@ -112,7 +115,7 @@ export function listCheckpoints(threadId: string, limit: number = 10): Checkpoin
 
   if (!result.rows) return [];
 
-  return result.rows.map((row) => ({
+  return result.rows.map((row: any) => ({
     threadId: row.thread_id as string,
     checkpointId: row.checkpoint_id as string,
     parentCheckpointId: row.parent_checkpoint_id as string | null,
@@ -125,15 +128,17 @@ export function listCheckpoints(threadId: string, limit: number = 10): Checkpoin
 /**
  * Delete all checkpoints for a thread
  */
-export function clearThread(threadId: string): void {
+export async function clearThread(threadId: string): Promise<void> {
   const db = getDatabase();
-  db.execute(`DELETE FROM checkpoints WHERE thread_id = ?`, [threadId]);
+  await db.execute(`DELETE FROM checkpoints WHERE thread_id = ?`, [threadId]);
 }
 
 /**
  * Delete all checkpoints (full reset)
  */
-export function clearAllCheckpoints(): void {
+export async function clearAllCheckpoints(): Promise<void> {
   const db = getDatabase();
-  db.execute(`DELETE FROM checkpoints`);
+  await db.execute(`DELETE FROM checkpoints`);
 }
+
+

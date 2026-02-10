@@ -69,6 +69,9 @@ export function createNewThread(): string {
 /**
  * Send a message to the tutor and get a response.
  */
+/**
+ * Send a message to the tutor and get a response.
+ */
 export async function sendMessage(threadId: string, userMessage: string): Promise<string> {
   const client = getGeminiClient();
 
@@ -76,7 +79,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   let messages = conversationCache.get(threadId);
   if (!messages) {
     // Try to load from database
-    const history = loadConversationHistory(threadId);
+    const history = await loadConversationHistory(threadId);
     messages = history;
     conversationCache.set(threadId, messages);
   }
@@ -112,7 +115,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   try {
     const checkpointId = uuidv4();
     const state: ConversationState = { messages };
-    saveCheckpoint(threadId, checkpointId, state as unknown as Record<string, unknown>);
+    await saveCheckpoint(threadId, checkpointId, state as unknown as Record<string, unknown>);
   } catch (err) {
     console.warn('Failed to save conversation checkpoint:', err);
   }
@@ -123,9 +126,9 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
 /**
  * Load conversation history from database for a given thread.
  */
-export function loadConversationHistory(threadId: string): ConversationMessage[] {
+export async function loadConversationHistory(threadId: string): Promise<ConversationMessage[]> {
   try {
-    const checkpoint = getLatestCheckpoint(threadId);
+    const checkpoint = await getLatestCheckpoint(threadId);
     if (checkpoint?.data) {
       const state = checkpoint.data as unknown as ConversationState;
       if (Array.isArray(state.messages)) {
@@ -137,3 +140,4 @@ export function loadConversationHistory(threadId: string): ConversationMessage[]
   }
   return [];
 }
+

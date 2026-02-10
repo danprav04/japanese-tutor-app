@@ -24,9 +24,12 @@ export interface ProgressRecord {
 /**
  * Get progress for a specific curriculum node
  */
-export function getProgress(nodeId: string): ProgressRecord | null {
+/**
+ * Get progress for a specific curriculum node
+ */
+export async function getProgress(nodeId: string): Promise<ProgressRecord | null> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT node_id, mastery_score, p_transit, p_guess, p_slip, attempts, correct_count, last_reviewed, unlocked
      FROM user_progress WHERE node_id = ?`,
     [nodeId]
@@ -34,7 +37,7 @@ export function getProgress(nodeId: string): ProgressRecord | null {
 
   if (!result.rows || result.rows.length === 0) return null;
 
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   return {
     nodeId: row.node_id as string,
     masteryScore: row.mastery_score as number,
@@ -51,16 +54,16 @@ export function getProgress(nodeId: string): ProgressRecord | null {
 /**
  * Get all progress records
  */
-export function getAllProgress(): ProgressRecord[] {
+export async function getAllProgress(): Promise<ProgressRecord[]> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT node_id, mastery_score, p_transit, p_guess, p_slip, attempts, correct_count, last_reviewed, unlocked
      FROM user_progress ORDER BY mastery_score DESC`
   );
 
   if (!result.rows) return [];
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row) => ({
     nodeId: row.node_id as string,
     masteryScore: row.mastery_score as number,
     pTransit: row.p_transit as number,
@@ -76,9 +79,9 @@ export function getAllProgress(): ProgressRecord[] {
 /**
  * Initialize progress for a new curriculum node
  */
-export function initializeProgress(nodeId: string, unlocked: boolean = false): void {
+export async function initializeProgress(nodeId: string, unlocked: boolean = false): Promise<void> {
   const db = getDatabase();
-  db.execute(
+  await db.execute(
     `INSERT OR IGNORE INTO user_progress (node_id, mastery_score, p_transit, p_guess, p_slip, attempts, correct_count, unlocked)
      VALUES (?, ?, ?, ?, ?, 0, 0, ?)`,
     [nodeId, 0.1, DEFAULT_BKT_PARAMS.p_transit, DEFAULT_BKT_PARAMS.p_guess, DEFAULT_BKT_PARAMS.p_slip, unlocked ? 1 : 0]
@@ -88,10 +91,10 @@ export function initializeProgress(nodeId: string, unlocked: boolean = false): v
 /**
  * Record an answer and update BKT mastery
  */
-export function recordAnswer(nodeId: string, isCorrect: boolean): ProgressRecord {
-  const existing = getProgress(nodeId);
+export async function recordAnswer(nodeId: string, isCorrect: boolean): Promise<ProgressRecord> {
+  const existing = await getProgress(nodeId);
   if (!existing) {
-    initializeProgress(nodeId, true);
+    await initializeProgress(nodeId, true);
     return recordAnswer(nodeId, isCorrect); // retry after init
   }
 
@@ -105,7 +108,7 @@ export function recordAnswer(nodeId: string, isCorrect: boolean): ProgressRecord
   const now = new Date().toISOString();
 
   const db = getDatabase();
-  db.execute(
+  await db.execute(
     `UPDATE user_progress 
      SET mastery_score = ?, attempts = attempts + 1, correct_count = correct_count + ?, last_reviewed = ?
      WHERE node_id = ?`,
@@ -114,7 +117,7 @@ export function recordAnswer(nodeId: string, isCorrect: boolean): ProgressRecord
 
   // Check if mastery unlocks dependent nodes
   if (isMastered(newMastery)) {
-    unlockDependentNodes(nodeId);
+    await unlockDependentNodes(nodeId);
   }
 
   return {
@@ -129,37 +132,37 @@ export function recordAnswer(nodeId: string, isCorrect: boolean): ProgressRecord
 /**
  * Unlock nodes that depend on a now-mastered node
  */
-function unlockDependentNodes(masteredNodeId: string): void {
+async function unlockDependentNodes(masteredNodeId: string): Promise<void> {
   const db = getDatabase();
 
   // Find all children of this node
-  const deps = db.execute(
+  const deps = await db.execute(
     `SELECT child_id FROM node_dependencies WHERE parent_id = ?`,
     [masteredNodeId]
   );
 
   if (!deps.rows) return;
 
-  for (const dep of deps.rows) {
+  for (const dep of deps.rows as any[]) {
     const childId = dep.child_id as string;
 
     // Check if ALL parents of this child are mastered
-    const unmastered = db.execute(
+    const unmastered = await db.execute(
       `SELECT COUNT(*) as count FROM node_dependencies nd
        JOIN user_progress up ON nd.parent_id = up.node_id
        WHERE nd.child_id = ? AND (up.mastery_score < 0.95 OR up.node_id IS NULL)`,
       [childId]
     );
 
-    const unmasteredCount = unmastered.rows?.[0]?.count as number ?? 1;
+    const unmasteredCount = ((unmastered.rows?.[0] as any)?.count as number) ?? 1;
 
     if (unmasteredCount === 0) {
       // All prerequisites met — unlock
-      db.execute(
+      await db.execute(
         `INSERT OR IGNORE INTO user_progress (node_id, unlocked) VALUES (?, 1)`,
         [childId]
       );
-      db.execute(
+      await db.execute(
         `UPDATE user_progress SET unlocked = 1 WHERE node_id = ?`,
         [childId]
       );
@@ -170,9 +173,9 @@ function unlockDependentNodes(masteredNodeId: string): void {
 /**
  * Get overall mastery across all tracked nodes
  */
-export function getOverallMastery(): { mastery: number; total: number; mastered: number } {
+export async function getOverallMastery(): Promise<{ mastery: number; total: number; mastered: number }> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT AVG(mastery_score) as avg_mastery, COUNT(*) as total,
             SUM(CASE WHEN mastery_score >= 0.95 THEN 1 ELSE 0 END) as mastered
      FROM user_progress`
@@ -182,7 +185,7 @@ export function getOverallMastery(): { mastery: number; total: number; mastered:
     return { mastery: 0, total: 0, mastered: 0 };
   }
 
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   return {
     mastery: (row.avg_mastery as number) || 0,
     total: row.total as number,
@@ -193,14 +196,14 @@ export function getOverallMastery(): { mastery: number; total: number; mastered:
 /**
  * Get category-level progress (grouped by JLPT level & type)
  */
-export function getCategoryProgress(): Array<{
+export async function getCategoryProgress(): Promise<Array<{
   name: string;
   mastery: number;
   total: number;
   learned: number;
-}> {
+}>> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT cn.type || ' N' || cn.jlpt_level as category_name,
             AVG(up.mastery_score) as avg_mastery,
             COUNT(*) as total,
@@ -213,10 +216,11 @@ export function getCategoryProgress(): Array<{
 
   if (!result.rows) return [];
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row) => ({
     name: row.category_name as string,
     mastery: (row.avg_mastery as number) || 0,
     total: row.total as number,
     learned: (row.learned as number) || 0,
   }));
 }
+

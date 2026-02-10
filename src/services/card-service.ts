@@ -19,6 +19,9 @@ import { v4 as uuidv4 } from 'uuid';
 /**
  * Hydrate a CardData object from a database row
  */
+/**
+ * Hydrate a CardData object from a database row
+ */
 function rowToCard(row: Record<string, unknown>): CardData {
   return {
     card_id: row.card_id as string,
@@ -41,9 +44,9 @@ function rowToCard(row: Record<string, unknown>): CardData {
 /**
  * Persist a CardData object back to the database
  */
-function persistCard(card: CardData): void {
+async function persistCard(card: CardData): Promise<void> {
   const db = getDatabase();
-  db.execute(
+  await db.execute(
     `UPDATE cards SET
        due = ?, stability = ?, difficulty = ?,
        elapsed_days = ?, scheduled_days = ?,
@@ -69,10 +72,10 @@ function persistCard(card: CardData): void {
 /**
  * Get cards that are due for review, limited to `limit` cards.
  */
-export function getDueCards(limit: number = 20): CardData[] {
+export async function getDueCards(limit: number = 20): Promise<CardData[]> {
   const db = getDatabase();
   const now = new Date().toISOString();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT * FROM cards
      WHERE due IS NULL OR due <= ?
      ORDER BY due ASC
@@ -81,29 +84,29 @@ export function getDueCards(limit: number = 20): CardData[] {
   );
 
   if (!result.rows) return [];
-  return result.rows.map(rowToCard);
+  return (result.rows as Record<string, unknown>[]).map(rowToCard);
 }
 
 /**
  * Review a card with the given rating and persist the updated state.
  */
-export function reviewCardAndPersist(cardId: string, rating: ReviewRating): void {
+export async function reviewCardAndPersist(cardId: string, rating: ReviewRating): Promise<void> {
   const db = getDatabase();
-  const result = db.execute(`SELECT * FROM cards WHERE card_id = ?`, [cardId]);
+  const result = await db.execute(`SELECT * FROM cards WHERE card_id = ?`, [cardId]);
 
   if (!result.rows || result.rows.length === 0) {
     throw new Error(`Card not found: ${cardId}`);
   }
 
-  const card = rowToCard(result.rows[0]);
+  const card = rowToCard(result.rows[0] as Record<string, unknown>);
   const now = new Date();
   const { updatedCard, interval } = reviewCard(card, rating, now);
 
   // Persist updated FSRS state
-  persistCard(updatedCard);
+  await persistCard(updatedCard);
 
   // Log the review
-  db.execute(
+  await db.execute(
     `INSERT INTO review_logs (card_id, rating, elapsed_days, scheduled_days, state)
      VALUES (?, ?, ?, ?, ?)`,
     [cardId, rating, updatedCard.elapsed_days, updatedCard.scheduled_days, updatedCard.state]
@@ -113,17 +116,17 @@ export function reviewCardAndPersist(cardId: string, rating: ReviewRating): void
 /**
  * Get a scheduling preview for a card (shows next review intervals for each rating).
  */
-export function getCardSchedulingPreview(
+export async function getCardSchedulingPreview(
   cardId: string
-): { again: string; hard: string; good: string; easy: string } {
+): Promise<{ again: string; hard: string; good: string; easy: string }> {
   const db = getDatabase();
-  const result = db.execute(`SELECT * FROM cards WHERE card_id = ?`, [cardId]);
+  const result = await db.execute(`SELECT * FROM cards WHERE card_id = ?`, [cardId]);
 
   if (!result.rows || result.rows.length === 0) {
     return { again: '?', hard: '?', good: '?', easy: '?' };
   }
 
-  const card = rowToCard(result.rows[0]);
+  const card = rowToCard(result.rows[0] as Record<string, unknown>);
   const options = getSchedulingOptions(card);
 
   return {
@@ -137,33 +140,33 @@ export function getCardSchedulingPreview(
 /**
  * Get aggregate card statistics.
  */
-export function getCardStats(): {
+export async function getCardStats(): Promise<{
   total: number;
   newCards: number;
   learning: number;
   reviewing: number;
   dueNow: number;
-} {
+}> {
   const db = getDatabase();
   const now = new Date().toISOString();
 
-  const totalResult = db.execute(`SELECT COUNT(*) as count FROM cards`);
-  const total = (totalResult.rows?.[0]?.count as number) ?? 0;
+  const totalResult = await db.execute(`SELECT COUNT(*) as count FROM cards`);
+  const total = ((totalResult.rows?.[0] as any)?.count as number) ?? 0;
 
-  const newResult = db.execute(`SELECT COUNT(*) as count FROM cards WHERE state = ?`, [State.New]);
-  const newCards = (newResult.rows?.[0]?.count as number) ?? 0;
+  const newResult = await db.execute(`SELECT COUNT(*) as count FROM cards WHERE state = ?`, [State.New]);
+  const newCards = ((newResult.rows?.[0] as any)?.count as number) ?? 0;
 
-  const learningResult = db.execute(`SELECT COUNT(*) as count FROM cards WHERE state = ?`, [State.Learning]);
-  const learning = (learningResult.rows?.[0]?.count as number) ?? 0;
+  const learningResult = await db.execute(`SELECT COUNT(*) as count FROM cards WHERE state = ?`, [State.Learning]);
+  const learning = ((learningResult.rows?.[0] as any)?.count as number) ?? 0;
 
-  const reviewResult = db.execute(`SELECT COUNT(*) as count FROM cards WHERE state = ?`, [State.Review]);
-  const reviewing = (reviewResult.rows?.[0]?.count as number) ?? 0;
+  const reviewResult = await db.execute(`SELECT COUNT(*) as count FROM cards WHERE state = ?`, [State.Review]);
+  const reviewing = ((reviewResult.rows?.[0] as any)?.count as number) ?? 0;
 
-  const dueResult = db.execute(
+  const dueResult = await db.execute(
     `SELECT COUNT(*) as count FROM cards WHERE due IS NULL OR due <= ?`,
     [now]
   );
-  const dueNow = (dueResult.rows?.[0]?.count as number) ?? 0;
+  const dueNow = ((dueResult.rows?.[0] as any)?.count as number) ?? 0;
 
   return { total, newCards, learning, reviewing, dueNow };
 }
@@ -171,17 +174,17 @@ export function getCardStats(): {
 /**
  * Create a new flashcard and persist it to the database.
  */
-export function createFlashcard(
+export async function createFlashcard(
   front: string,
   back: string,
   cardType: 'vocab' | 'grammar' | 'kanji',
   nodeId?: string
-): CardData {
+): Promise<CardData> {
   const db = getDatabase();
   const cardId = uuidv4();
   const now = new Date();
 
-  db.execute(
+  await db.execute(
     `INSERT INTO cards (card_id, node_id, front, back, card_type, due, stability, difficulty,
        elapsed_days, scheduled_days, reps, lapses, state)
      VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0)`,
@@ -205,3 +208,4 @@ export function createFlashcard(
     last_review: undefined,
   };
 }
+

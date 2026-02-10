@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Platform, ActivityIndicator } from 'react-native';
+import { KeyboardAvoidingView, KeyboardProvider } from 'react-native-keyboard-controller';
 import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore } from '../../src/store/app-store';
@@ -34,20 +35,22 @@ export default function ChatScreen() {
 
     // Load existing conversation history
     if (currentThreadId) {
-      try {
-        const history = loadConversationHistory(currentThreadId);
-        if (history.length > 0) {
-          const historicalMessages: IMessage[] = history.map((msg, i) => ({
-            _id: `history-${i}`,
-            text: msg.content,
-            createdAt: new Date(msg.timestamp),
-            user: msg.role === 'user' ? { _id: 1 } : SENSEI_USER,
-          }));
-          setMessages(historicalMessages.reverse()); // GiftedChat expects newest first
+      (async () => {
+        try {
+          const history = await loadConversationHistory(currentThreadId);
+          if (history && history.length > 0) {
+            const historicalMessages: IMessage[] = history.map((msg, i) => ({
+              _id: `history-${i}`,
+              text: msg.content,
+              createdAt: new Date(msg.timestamp),
+              user: msg.role === 'user' ? { _id: 1 } : SENSEI_USER,
+            }));
+            setMessages((prev) => GiftedChat.append(prev, historicalMessages.reverse()));
+          }
+        } catch {
+          // DB not initialized yet — that's fine on first load
         }
-      } catch {
-        // DB not initialized yet — that's fine on first load
-      }
+      })();
     }
   }, []);
 
@@ -113,73 +116,76 @@ export default function ChatScreen() {
   }, [isGeminiReady, currentThreadId, setCurrentThreadId]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={90}
-      >
-        <GiftedChat
-          messages={messages}
-          onSend={(msgs) => onSend(msgs)}
-          user={{ _id: 1 }}
-          isTyping={isTyping}
-          textInputProps={{
-            placeholder: "Type a message... (日本語 OK!)",
-          }}
-          // @ts-ignore - alwaysShowSend exists but types may be outdated
-          alwaysShowSend
-          renderBubble={(props) => (
-            <Bubble
-              {...props}
-              wrapperStyle={{
-                right: { backgroundColor: '#6366f1' },
-                left: { backgroundColor: '#1a1a1a' },
-              }}
-              textStyle={{
-                right: { color: '#fff' },
-                left: { color: '#fff' },
-              }}
-            />
-          )}
-          renderInputToolbar={(props) => (
-            <InputToolbar
-              {...props}
-              containerStyle={styles.inputToolbar}
-              primaryStyle={styles.inputPrimary}
-            />
-          )}
-          renderComposer={(props) => (
-            <Composer
-              {...props}
-              textInputProps={{
-                ...props.textInputProps,
-                style: styles.composer,
-                placeholderTextColor: "#666",
-              }}
-            />
-          )}
-          renderSend={(props) => (
-            <Send {...props} containerStyle={styles.sendContainer}>
-              <View style={styles.sendButton}>
-                {isTyping ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <View style={styles.sendIcon} />
-                )}
-              </View>
-            </Send>
-          )}
-          renderFooter={() => (
-            !isGeminiReady ? (
-              <View style={styles.footer}>
-                <Text style={styles.footerText}>🔑 Add API key in Settings to enable AI</Text>
-              </View>
-            ) : null
-          )}
-        />
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    <KeyboardProvider>
+      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+          <GiftedChat
+            messages={messages}
+            onSend={(msgs) => onSend(msgs)}
+            user={{ _id: 1 }}
+            isTyping={isTyping}
+            textInputProps={{
+              placeholder: "Type a message... (日本語 OK!)",
+            }}
+            // @ts-ignore
+            alwaysShowSend
+            renderBubble={(props) => (
+              <Bubble
+                {...props}
+                wrapperStyle={{
+                  right: { backgroundColor: '#6366f1' },
+                  left: { backgroundColor: '#1a1a1a' },
+                }}
+                textStyle={{
+                  right: { color: '#fff' },
+                  left: { color: '#fff' },
+                }}
+              />
+            )}
+            renderInputToolbar={(props) => (
+              <InputToolbar
+                {...props}
+                containerStyle={styles.inputToolbar}
+                primaryStyle={styles.inputPrimary}
+              />
+            )}
+            renderComposer={(props) => (
+              <Composer
+                {...props}
+                textInputProps={{
+                  ...props.textInputProps,
+                  style: styles.composer,
+                  placeholderTextColor: "#666",
+                }}
+              />
+            )}
+            renderSend={(props) => (
+              <Send {...props} containerStyle={styles.sendContainer}>
+                <View style={styles.sendButton}>
+                  {isTyping ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <View style={styles.sendIcon} />
+                  )}
+                </View>
+              </Send>
+            )}
+            renderFooter={() => (
+              !isGeminiReady ? (
+                <View style={styles.footer}>
+                  <Text style={styles.footerText}>🔑 Add API key in Settings to enable AI</Text>
+                </View>
+              ) : null
+            )}
+            bottomOffset={Platform.OS === 'ios' ? 0 : 0}
+          />
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </KeyboardProvider>
   );
 }
 

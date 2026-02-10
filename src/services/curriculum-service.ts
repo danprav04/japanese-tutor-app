@@ -27,17 +27,20 @@ export interface NodeDependency {
 /**
  * Add a new curriculum node
  */
-export function addNode(
+/**
+ * Add a new curriculum node
+ */
+export async function addNode(
   title: string,
   type: 'grammar' | 'vocab' | 'kanji',
   jlptLevel: number,
   content?: Record<string, unknown>,
   sourceFile?: string
-): CurriculumNode {
+): Promise<CurriculumNode> {
   const nodeId = uuidv4();
   const db = getDatabase();
 
-  db.execute(
+  await db.execute(
     `INSERT INTO curriculum_nodes (node_id, title, type, jlpt_level, content_payload, source_file)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [nodeId, title, type, jlptLevel, content ? JSON.stringify(content) : null, sourceFile ?? null]
@@ -57,7 +60,7 @@ export function addNode(
 /**
  * Add multiple nodes at once (for bulk ingestion)
  */
-export function addNodes(
+export async function addNodes(
   nodes: Array<{
     title: string;
     type: 'grammar' | 'vocab' | 'kanji';
@@ -65,20 +68,22 @@ export function addNodes(
     content?: Record<string, unknown>;
     sourceFile?: string;
   }>
-): CurriculumNode[] {
-  return nodes.map((n) => addNode(n.title, n.type, n.jlptLevel, n.content, n.sourceFile));
+): Promise<CurriculumNode[]> {
+  return Promise.all(
+    nodes.map((n) => addNode(n.title, n.type, n.jlptLevel, n.content, n.sourceFile))
+  );
 }
 
 /**
  * Add a dependency between two nodes
  */
-export function addDependency(
+export async function addDependency(
   parentId: string,
   childId: string,
   type: 'strict' | 'soft' = 'strict'
-): void {
+): Promise<void> {
   const db = getDatabase();
-  db.execute(
+  await db.execute(
     `INSERT OR IGNORE INTO node_dependencies (parent_id, child_id, dependency_type)
      VALUES (?, ?, ?)`,
     [parentId, childId, type]
@@ -88,16 +93,16 @@ export function addDependency(
 /**
  * Get a single node by ID
  */
-export function getNode(nodeId: string): CurriculumNode | null {
+export async function getNode(nodeId: string): Promise<CurriculumNode | null> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT * FROM curriculum_nodes WHERE node_id = ?`,
     [nodeId]
   );
 
   if (!result.rows || result.rows.length === 0) return null;
 
-  const row = result.rows[0];
+  const row = result.rows[0] as any;
   return {
     nodeId: row.node_id as string,
     title: row.title as string,
@@ -112,14 +117,14 @@ export function getNode(nodeId: string): CurriculumNode | null {
 /**
  * Get all nodes, optionally filtered by type and/or JLPT level
  */
-export function getNodes(filters?: {
+export async function getNodes(filters?: {
   type?: 'grammar' | 'vocab' | 'kanji';
   jlptLevel?: number;
   sourceFile?: string;
-}): CurriculumNode[] {
+}): Promise<CurriculumNode[]> {
   const db = getDatabase();
   let query = `SELECT * FROM curriculum_nodes WHERE 1=1`;
-  const params: unknown[] = [];
+  const params: any[] = [];
 
   if (filters?.type) {
     query += ` AND type = ?`;
@@ -136,10 +141,10 @@ export function getNodes(filters?: {
 
   query += ` ORDER BY jlpt_level DESC, type, title`;
 
-  const result = db.execute(query, params);
+  const result = await db.execute(query, params);
   if (!result.rows) return [];
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row) => ({
     nodeId: row.node_id as string,
     title: row.title as string,
     type: row.type as 'grammar' | 'vocab' | 'kanji',
@@ -153,9 +158,9 @@ export function getNodes(filters?: {
 /**
  * Get prerequisites for a node (what you need to learn first)
  */
-export function getPrerequisites(nodeId: string): CurriculumNode[] {
+export async function getPrerequisites(nodeId: string): Promise<CurriculumNode[]> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT cn.* FROM curriculum_nodes cn
      JOIN node_dependencies nd ON cn.node_id = nd.parent_id
      WHERE nd.child_id = ?`,
@@ -164,7 +169,7 @@ export function getPrerequisites(nodeId: string): CurriculumNode[] {
 
   if (!result.rows) return [];
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row) => ({
     nodeId: row.node_id as string,
     title: row.title as string,
     type: row.type as 'grammar' | 'vocab' | 'kanji',
@@ -178,9 +183,9 @@ export function getPrerequisites(nodeId: string): CurriculumNode[] {
 /**
  * Get nodes that depend on this node (what it unlocks)
  */
-export function getDependents(nodeId: string): CurriculumNode[] {
+export async function getDependents(nodeId: string): Promise<CurriculumNode[]> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT cn.* FROM curriculum_nodes cn
      JOIN node_dependencies nd ON cn.node_id = nd.child_id
      WHERE nd.parent_id = ?`,
@@ -189,7 +194,7 @@ export function getDependents(nodeId: string): CurriculumNode[] {
 
   if (!result.rows) return [];
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row) => ({
     nodeId: row.node_id as string,
     title: row.title as string,
     type: row.type as 'grammar' | 'vocab' | 'kanji',
@@ -204,9 +209,9 @@ export function getDependents(nodeId: string): CurriculumNode[] {
  * Get unlocked nodes (where all prerequisites are mastered)
  * Uses recursive CTE for graph traversal
  */
-export function getUnlockedNodes(): CurriculumNode[] {
+export async function getUnlockedNodes(): Promise<CurriculumNode[]> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT cn.* FROM curriculum_nodes cn
      LEFT JOIN user_progress up ON cn.node_id = up.node_id
      WHERE up.unlocked = 1 OR up.node_id IS NULL
@@ -215,7 +220,7 @@ export function getUnlockedNodes(): CurriculumNode[] {
 
   if (!result.rows) return [];
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row) => ({
     nodeId: row.node_id as string,
     title: row.title as string,
     type: row.type as 'grammar' | 'vocab' | 'kanji',
@@ -229,16 +234,16 @@ export function getUnlockedNodes(): CurriculumNode[] {
 /**
  * Search nodes by title
  */
-export function searchNodes(query: string): CurriculumNode[] {
+export async function searchNodes(query: string): Promise<CurriculumNode[]> {
   const db = getDatabase();
-  const result = db.execute(
+  const result = await db.execute(
     `SELECT * FROM curriculum_nodes WHERE title LIKE ? ORDER BY title LIMIT 20`,
     [`%${query}%`]
   );
 
   if (!result.rows) return [];
 
-  return result.rows.map((row) => ({
+  return (result.rows as any[]).map((row) => ({
     nodeId: row.node_id as string,
     title: row.title as string,
     type: row.type as 'grammar' | 'vocab' | 'kanji',
@@ -252,39 +257,40 @@ export function searchNodes(query: string): CurriculumNode[] {
 /**
  * Delete a node and its dependencies
  */
-export function deleteNode(nodeId: string): void {
+export async function deleteNode(nodeId: string): Promise<void> {
   const db = getDatabase();
-  db.execute(`DELETE FROM curriculum_nodes WHERE node_id = ?`, [nodeId]);
+  await db.execute(`DELETE FROM curriculum_nodes WHERE node_id = ?`, [nodeId]);
 }
 
 /**
  * Get curriculum stats
  */
-export function getCurriculumStats(): {
+export async function getCurriculumStats(): Promise<{
   totalNodes: number;
   byType: Record<string, number>;
   byLevel: Record<number, number>;
-} {
+}> {
   const db = getDatabase();
 
-  const totalResult = db.execute(`SELECT COUNT(*) as count FROM curriculum_nodes`);
-  const total = (totalResult.rows?.[0]?.count as number) ?? 0;
+  const totalResult = await db.execute(`SELECT COUNT(*) as count FROM curriculum_nodes`);
+  const total = ((totalResult.rows?.[0] as any)?.count as number) ?? 0;
 
-  const typeResult = db.execute(
+  const typeResult = await db.execute(
     `SELECT type, COUNT(*) as count FROM curriculum_nodes GROUP BY type`
   );
   const byType: Record<string, number> = {};
-  typeResult.rows?.forEach((row) => {
+  (typeResult.rows as any[])?.forEach((row: any) => {
     byType[row.type as string] = row.count as number;
   });
 
-  const levelResult = db.execute(
+  const levelResult = await db.execute(
     `SELECT jlpt_level, COUNT(*) as count FROM curriculum_nodes GROUP BY jlpt_level`
   );
   const byLevel: Record<number, number> = {};
-  levelResult.rows?.forEach((row) => {
+  (levelResult.rows as any[])?.forEach((row: any) => {
     byLevel[row.jlpt_level as number] = row.count as number;
   });
 
   return { totalNodes: total, byType, byLevel };
 }
+

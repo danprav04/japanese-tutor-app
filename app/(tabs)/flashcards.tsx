@@ -26,11 +26,11 @@ export default function FlashcardsScreen() {
   });
 
   // Load due cards
-  const loadCards = useCallback(() => {
+  const loadCards = useCallback(async () => {
     if (!isDatabaseReady) return;
     setIsLoading(true);
     try {
-      const due = getDueCards(20);
+      const due = await getDueCards(20);
       setCards(due.map((c: CardData) => ({
         card_id: c.card_id,
         node_id: c.node_id,
@@ -55,28 +55,33 @@ export default function FlashcardsScreen() {
 
   // Update scheduling when card changes or flips
   useEffect(() => {
-    if (cards.length > 0 && currentIndex < cards.length && isFlipped) {
-      try {
-        const preview = getCardSchedulingPreview(cards[currentIndex].card_id);
-        setScheduling(preview);
-      } catch {
-        setScheduling({ again: '?', hard: '?', good: '?', easy: '?' });
+    let mounted = true;
+    const fetchScheduling = async () => {
+      if (cards.length > 0 && currentIndex < cards.length && isFlipped) {
+        try {
+          const preview = await getCardSchedulingPreview(cards[currentIndex].card_id);
+          if (mounted) setScheduling(preview);
+        } catch {
+          if (mounted) setScheduling({ again: '?', hard: '?', good: '?', easy: '?' });
+        }
       }
-    }
+    };
+    fetchScheduling();
+    return () => { mounted = false; };
   }, [currentIndex, isFlipped, cards]);
 
   const handleFlip = () => setIsFlipped(!isFlipped);
 
-  const handleRating = (rating: ReviewRating) => {
+  const handleRating = async (rating: ReviewRating) => {
     const card = cards[currentIndex];
     try {
       // Update FSRS card state
-      reviewCardAndPersist(card.card_id, rating);
+      await reviewCardAndPersist(card.card_id, rating);
 
       // Update BKT mastery if linked to a curriculum node
       if (card.node_id) {
         const isCorrect = rating === Rating.Good || rating === Rating.Easy;
-        recordAnswer(card.node_id, isCorrect);
+        await recordAnswer(card.node_id, isCorrect);
       }
 
       setTotalReviews(totalReviews + 1);
