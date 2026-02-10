@@ -8,6 +8,7 @@
 
 import { initGeminiClient, getGeminiClient, type ModelType } from './gemini-client';
 import { saveCheckpoint, getLatestCheckpoint, listCheckpoints } from '../db/checkpointer';
+import { createFlashcard } from './card-service';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -42,11 +43,50 @@ Guidelines:
 - Always show Japanese text alongside English translations
 - For grammar, explain the pattern and give 2-3 examples
 - For vocab, include reading (furigana), meaning, and usage
-- Format responses for easy reading on mobile`;
+- Format responses for easy reading on mobile
+
+Flashcard Generation:
+When you teach a NEW vocabulary word, grammar point, or kanji, include a flashcard block at the END of your response using this exact format:
+[FLASHCARD]{"front":"日本語 text","back":"English meaning (reading)","type":"vocab"}[/FLASHCARD]
+Valid types: vocab, grammar, kanji. You may include multiple flashcard blocks.
+Do NOT include flashcards for items the student already knows or that were previously taught.`;
 
 // ─── In-memory conversation cache ────────────────────────────
 
 const conversationCache = new Map<string, ConversationMessage[]>();
+
+// ─── Flashcard Parsing ───────────────────────────────────────
+
+interface ParsedFlashcard {
+  front: string;
+  back: string;
+  type: 'vocab' | 'grammar' | 'kanji';
+}
+
+function parseFlashcards(response: string): { cleanText: string; cards: ParsedFlashcard[] } {
+  const cards: ParsedFlashcard[] = [];
+  const regex = /\[FLASHCARD\](\{[^]*?\})\[\/FLASHCARD\]/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(response)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (parsed.front && parsed.back && parsed.type) {
+        const validTypes = ['vocab', 'grammar', 'kanji'];
+        if (validTypes.includes(parsed.type)) {
+          cards.push(parsed as ParsedFlashcard);
+        }
+      }
+    } catch {
+      // Skip malformed flashcard JSON
+    }
+  }
+
+  // Remove flashcard markers from display text
+  const cleanText = response.replace(/\[FLASHCARD\]\{[^]*?\}\[\/FLASHCARD\]/g, '').trim();
+
+  return { cleanText, cards };
+}
 
 // ─── Public API ──────────────────────────────────────────────
 
@@ -72,7 +112,7 @@ export function createNewThread(): string {
 /**
  * Send a message to the tutor and get a response.
  */
-export async function sendMessage(threadId: string, userMessage: string): Promise<string> {
+export async function sendMessage(threadId: string, userMessage: string): Promise<{ text: string; cardsCreated: number }> {
   const client = getGeminiClient();
 
   // Get or initialize conversation history
@@ -101,7 +141,22 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   const prompt = `${conversationContext}\n\nSensei:`;
 
   // Generate response
-  const response = await client.generate(prompt, SYSTEM_PROMPT);
+  const rawResponse = await client.generate(prompt, SYSTEM_PROMPT);
+
+  // Parse for embedded flashcards
+  const { cleanText, cards } = parseFlashcards(rawResponse);
+  const response = cleanText || rawResponse;
+
+  // Auto-create flashcards
+  let cardsCreated = 0;
+  for (const card of cards) {
+    try {
+      await createFlashcard(card.front, card.back, card.type);
+      cardsCreated++;
+    } catch (err) {
+      console.warn('Failed to create flashcard from chat:', err);
+    }
+  }
 
   // Add assistant message
   const assistantMsg: ConversationMessage = {
@@ -120,7 +175,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     console.warn('Failed to save conversation checkpoint:', err);
   }
 
-  return response;
+  return { text: response, cardsCreated };
 }
 
 /**

@@ -4,6 +4,7 @@ import { View, StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { useEffect, useState } from 'react';
 import { initDatabase } from '../src/db/database';
 import { useAppStore } from '../src/store/app-store';
+import { seedStarterCurriculum } from '../src/services/seed-service';
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
@@ -16,6 +17,9 @@ export default function RootLayout() {
         // 1. Initialize database
         await initDatabase();
         setDatabaseReady(true);
+
+        // 1.5. Seed starter curriculum (no-op if already seeded)
+        await seedStarterCurriculum();
 
         // 2. Load settings from secure storage
         await loadFromStorage();

@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
+import { useFocusEffect } from 'expo-router';
 import { useAppStore, type ModelType } from '../../src/store/app-store';
+import { processDocument, getUploadedDocuments } from '../../src/services/document-service';
 
 export default function SettingsScreen() {
   const {
@@ -14,6 +16,20 @@ export default function SettingsScreen() {
   } = useAppStore();
 
   const [newKey, setNewKey] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadedDocs, setUploadedDocs] = useState<Array<{ documentId: string; filename: string; processed: number }>>([]);
+
+  // Load uploaded documents on focus
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const docs = await getUploadedDocuments();
+          setUploadedDocs(docs);
+        } catch {}
+      })();
+    }, [])
+  );
 
   const handleAddKey = () => {
     if (newKey.trim()) {
@@ -46,10 +62,39 @@ export default function SettingsScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const file = result.assets[0];
+
+        if (!useAppStore.getState().isGeminiReady) {
+          Alert.alert('API Key Required', 'Please add a Gemini API key first to process documents.');
+          return;
+        }
+
         Alert.alert(
-          'File Selected',
-          `${file.name}\n\nThe AI will analyze this and add content to your curriculum.`,
-          [{ text: 'Process', onPress: () => console.log('TODO: Process file', file.uri) }]
+          'Process File',
+          `${file.name}\n\nThe AI will analyze this and add vocabulary, grammar, and kanji to your curriculum.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Process',
+              onPress: async () => {
+                setIsProcessing(true);
+                try {
+                  const count = await processDocument(
+                    file.uri,
+                    file.name,
+                    file.mimeType || 'text/plain',
+                  );
+                  Alert.alert('✅ Success', `Imported ${count} items from ${file.name}!`);
+                  // Refresh doc list
+                  const docs = await getUploadedDocuments();
+                  setUploadedDocs(docs);
+                } catch (error) {
+                  Alert.alert('Error', error instanceof Error ? error.message : 'Failed to process file.');
+                } finally {
+                  setIsProcessing(false);
+                }
+              },
+            },
+          ]
         );
       }
     } catch (error) {
@@ -142,9 +187,37 @@ export default function SettingsScreen() {
             Upload PDFs, text files, or markdown to expand your curriculum
           </Text>
 
-          <TouchableOpacity style={styles.uploadButton} onPress={handleUploadMaterial}>
-            <Text style={styles.uploadButtonText}>📁 Choose File</Text>
+          <TouchableOpacity
+            style={[styles.uploadButton, isProcessing && styles.uploadDisabled]}
+            onPress={handleUploadMaterial}
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+              <View style={styles.uploadProcessing}>
+                <ActivityIndicator size="small" color="#6366f1" />
+                <Text style={styles.uploadButtonText}>Processing...</Text>
+              </View>
+            ) : (
+              <Text style={styles.uploadButtonText}>📁 Choose File</Text>
+            )}
           </TouchableOpacity>
+
+          {uploadedDocs.length > 0 && (
+            <View style={styles.docList}>
+              {uploadedDocs.map((doc) => (
+                <View key={doc.documentId} style={styles.docItem}>
+                  <Text style={styles.docName}>{doc.filename}</Text>
+                  <Text style={[
+                    styles.docStatus,
+                    doc.processed === 1 && styles.docStatusDone,
+                    doc.processed === -1 && styles.docStatusFailed,
+                  ]}>
+                    {doc.processed === 1 ? '✅' : doc.processed === -1 ? '❌' : '⏳'}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Support */}
@@ -276,6 +349,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
+  uploadDisabled: {
+    opacity: 0.6,
+  },
+  uploadProcessing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  docList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  docItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 10,
+    padding: 12,
+  },
+  docName: {
+    color: '#ccc',
+    fontSize: 14,
+    flex: 1,
+  },
+  docStatus: {
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  docStatusDone: {},
+  docStatusFailed: {},
   donateButton: {
     backgroundColor: '#4a1d7e',
     borderRadius: 12,

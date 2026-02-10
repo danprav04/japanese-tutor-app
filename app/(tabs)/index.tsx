@@ -92,7 +92,7 @@ export default function ChatScreen() {
       }
 
       // Get AI response
-      const response = await sendMessage(threadId, userMessage.text);
+      const { text: response, cardsCreated } = await sendMessage(threadId, userMessage.text);
 
       const aiMessage: IMessage = {
         _id: `ai-${Date.now()}`,
@@ -101,6 +101,20 @@ export default function ChatScreen() {
         user: SENSEI_USER,
       };
       setMessages((prev) => GiftedChat.append(prev, [aiMessage]));
+
+      // Show card creation notification
+      if (cardsCreated > 0) {
+        const cardNotif: IMessage = {
+          _id: `card-notif-${Date.now()}`,
+          text: `📝 ${cardsCreated} flashcard${cardsCreated > 1 ? 's' : ''} created! Check the Review tab.`,
+          createdAt: new Date(),
+          user: SENSEI_USER,
+          system: true,
+        };
+        setTimeout(() => {
+          setMessages((prev) => GiftedChat.append(prev, [cardNotif]));
+        }, 500);
+      }
     } catch (error) {
       const errorMsg: IMessage = {
         _id: `error-${Date.now()}`,

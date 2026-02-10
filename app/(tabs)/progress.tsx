@@ -72,12 +72,12 @@ export default function ProgressScreen() {
   const [categories, setCategories] = useState<CategoryData[]>([]);
   const [cardStats, setCardStats] = useState({ total: 0, newCards: 0, learning: 0, reviewing: 0, dueNow: 0 });
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     if (!isDatabaseReady) return;
     try {
-      setOverall(getOverallMastery());
-      setCategories(getCategoryProgress());
-      setCardStats(getCardStats());
+      setOverall(await getOverallMastery());
+      setCategories(await getCategoryProgress());
+      setCardStats(await getCardStats());
     } catch (err) {
       console.error('Failed to load progress:', err);
     }
