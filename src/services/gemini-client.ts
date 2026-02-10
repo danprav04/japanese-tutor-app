@@ -94,10 +94,25 @@ export class GeminiClient {
    * Generate text response with retry on rate limit
    */
   /**
-   * Helper to wait for a specified duration
+   * Helper to wait for a specified duration, with abort support
    */
-  private async delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  private async delay(ms: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) {
+      return Promise.reject(new Error('Aborted'));
+    }
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        resolve();
+        signal?.removeEventListener('abort', onAbort);
+      }, ms);
+
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(new Error('Aborted'));
+      };
+
+      signal?.addEventListener('abort', onAbort);
+    });
   }
 
   /**
@@ -122,7 +137,7 @@ export class GeminiClient {
   /**
    * Generate text response with retry on rate limit
    */
-  async generate(prompt: string, systemPrompt?: string, configOverride?: Partial<GenerationConfig>): Promise<string> {
+  async generate(prompt: string, systemPrompt?: string, configOverride?: Partial<GenerationConfig>, signal?: AbortSignal): Promise<string> {
     // If we have multiple keys, we try rotation. If single key (or all exhausted), we wait.
     // Total max duration to wait: ~60 seconds
     const maxRetries = 5; 
@@ -130,6 +145,10 @@ export class GeminiClient {
     let currentKeyAttempt = 0;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      if (signal?.aborted) {
+        throw new Error('Aborted');
+      }
+
       try {
         const model = this.getGenerativeModel(configOverride);
 
@@ -149,6 +168,10 @@ export class GeminiClient {
         const response = result.response;
         return response.text();
       } catch (error) {
+        if (signal?.aborted) {
+            throw new Error('Aborted');
+        }
+
         lastError = error as Error;
         
         if (isRateLimitError(error)) {
@@ -167,7 +190,7 @@ export class GeminiClient {
           // Otherwise, wait and retry
           const delayMs = this.getRetryDelay(error, attempt);
           console.warn(`⏳ Rate limit hit. Waiting ${Math.round(delayMs/1000)}s before retry ${attempt + 1}/${maxRetries}...`);
-          await this.delay(delayMs);
+          await this.delay(delayMs, signal);
         } else {
           throw error;
         }
@@ -180,10 +203,10 @@ export class GeminiClient {
   /**
    * Generate text with streaming (for real-time updates)
    */
-  /**
-   * Generate text with streaming (for real-time updates)
-   */
   async *generateStream(prompt: string, systemPrompt?: string): AsyncGenerator<string> {
+    // ... (Stream implementation can be updated later if needed, focusing on JSON/Text first)
+    // For now the existing stream implementation is kept but we should ideally update it too.
+    // Since processDocument uses generateJSON (which uses generate), we are covered for the upload task.
     const maxRetries = 5;
     let currentKeyAttempt = 0;
     
@@ -216,6 +239,7 @@ export class GeminiClient {
           // Otherwise, wait and retry
           const delayMs = this.getRetryDelay(error, attempt);
           console.warn(`⏳ Rate limit hit (stream). Waiting ${Math.round(delayMs/1000)}s before retry ${attempt + 1}/${maxRetries}...`);
+          // Note: generateStream doesn't take signal yet in this refactor, but it's not used by processDocument
           await this.delay(delayMs);
         } else {
           throw error;
@@ -229,7 +253,7 @@ export class GeminiClient {
   /**
    * Generate JSON response (structured output)
    */
-  async generateJSON<T>(prompt: string, schema: string): Promise<T> {
+  async generateJSON<T>(prompt: string, schema: string, signal?: AbortSignal): Promise<T> {
     const jsonPrompt = `${prompt}
 
 Respond with ONLY valid JSON matching this schema:
@@ -245,7 +269,7 @@ Do not include any other text, markdown, or explanation. Only output the JSON ob
       ? { responseMimeType: 'application/json' }
       : undefined;
 
-    const response = await this.generate(jsonPrompt, undefined, config);
+    const response = await this.generate(jsonPrompt, undefined, config, signal);
     
     // Clean up response (although JSON mode usually handles this well)
     // Sometimes models wrap in markdown even in JSON mode

@@ -170,9 +170,13 @@ export async function processDocument(
       // Debug: Log progress
       console.log(`📄 Processing chunk ${i + 1}/${textChunks.length} (${textChunks[i].length} chars)...`);
 
-      const extraction = await client.generateJSON<ExtractionResult>(prompt, EXTRACTION_SCHEMA);
-      if (extraction.items && Array.isArray(extraction.items)) {
-        allItems.push(...extraction.items);
+      const result = await client.generateJSON<ExtractionResult>(
+        prompt, 
+        EXTRACTION_SCHEMA,
+        options?.signal // Pass the abort signal
+      );
+      if (result.items && Array.isArray(result.items)) {
+        allItems.push(...result.items);
       }
       
       // Standard delay to be polite to the API
