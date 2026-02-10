@@ -10,6 +10,8 @@ import { initGeminiClient, getGeminiClient, type ModelType } from './gemini-clie
 import { saveCheckpoint, getLatestCheckpoint, listCheckpoints } from '../db/checkpointer';
 import { createFlashcard } from './card-service';
 import { buildCurriculumContext } from './curriculum-context';
+import { recordAnswer } from './progress-service';
+import { searchNodes } from './curriculum-service';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -52,18 +54,30 @@ You have access to the student's CURRICULUM STATUS below. Use it to guide your t
 When you teach a NEW vocabulary word, grammar point, or kanji, include a flashcard block at the END of your response:
 [FLASHCARD]{"front":"日本語 text","back":"English meaning (reading)","type":"vocab"}[/FLASHCARD]
 Valid types: vocab, grammar, kanji. You may include multiple blocks.
-Do NOT include flashcards for items already in the curriculum (check the status below).`;
+Do NOT include flashcards for items already in the curriculum (check the status below).
+
+## Progress Tracking
+When you quiz the student and they answer, record their result using:
+[PROGRESS]{"item":"exact item title from curriculum","correct":true}[/PROGRESS]
+[PROGRESS]{"item":"exact item title from curriculum","correct":false}[/PROGRESS]
+Use this EVERY time you verify the student's understanding — after quizzes, exercises, or when they use a word/pattern correctly in conversation.
+The "item" must match a title from the curriculum status above. Set "correct" to true if they got it right, false if wrong.`;
 
 // ─── In-memory conversation cache ────────────────────────────
 
 const conversationCache = new Map<string, ConversationMessage[]>();
 
-// ─── Flashcard Parsing ───────────────────────────────────────
+// ─── Response Parsing ────────────────────────────────────────
 
 interface ParsedFlashcard {
   front: string;
   back: string;
   type: 'vocab' | 'grammar' | 'kanji';
+}
+
+interface ParsedProgress {
+  item: string;
+  correct: boolean;
 }
 
 function parseFlashcards(response: string): { cleanText: string; cards: ParsedFlashcard[] } {
@@ -85,10 +99,28 @@ function parseFlashcards(response: string): { cleanText: string; cards: ParsedFl
     }
   }
 
-  // Remove flashcard markers from display text
   const cleanText = response.replace(/\[FLASHCARD\]\{[^]*?\}\[\/FLASHCARD\]/g, '').trim();
-
   return { cleanText, cards };
+}
+
+function parseProgressMarkers(response: string): { cleanText: string; updates: ParsedProgress[] } {
+  const updates: ParsedProgress[] = [];
+  const regex = /\[PROGRESS\](\{[^]*?\})\[\/PROGRESS\]/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(response)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (parsed.item && typeof parsed.correct === 'boolean') {
+        updates.push({ item: parsed.item, correct: parsed.correct });
+      }
+    } catch {
+      // Skip malformed progress JSON
+    }
+  }
+
+  const cleanText = response.replace(/\[PROGRESS\]\{[^]*?\}\[\/PROGRESS\]/g, '').trim();
+  return { cleanText, updates };
 }
 
 // ─── Public API ──────────────────────────────────────────────
@@ -115,13 +147,16 @@ export function createNewThread(): string {
 /**
  * Send a message to the tutor and get a response.
  */
-export async function sendMessage(threadId: string, userMessage: string): Promise<{ text: string; cardsCreated: number }> {
+export async function sendMessage(threadId: string, userMessage: string): Promise<{
+  text: string;
+  cardsCreated: number;
+  progressUpdates: number;
+}> {
   const client = getGeminiClient();
 
   // Get or initialize conversation history
   let messages = conversationCache.get(threadId);
   if (!messages) {
-    // Try to load from database
     const history = await loadConversationHistory(threadId);
     messages = history;
     conversationCache.set(threadId, messages);
@@ -137,10 +172,9 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
 
   // Build conversation context for the model
   const conversationContext = messages
-    .slice(-20) // Keep last 20 messages for context
+    .slice(-20)
     .map((m) => `${m.role === 'user' ? 'Student' : 'Sensei'}: ${m.content}`)
     .join('\n\n');
-
 
   // Build curriculum-aware prompt
   let curriculumContext = '';
@@ -157,9 +191,12 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   // Generate response
   const rawResponse = await client.generate(fullPrompt);
 
-  // Parse for embedded flashcards
-  const { cleanText, cards } = parseFlashcards(rawResponse);
-  const response = cleanText || rawResponse;
+  // Parse embedded flashcards
+  const { cleanText: afterFlashcards, cards } = parseFlashcards(rawResponse);
+
+  // Parse embedded progress markers
+  const { cleanText: afterProgress, updates } = parseProgressMarkers(afterFlashcards || rawResponse);
+  const response = afterProgress || afterFlashcards || rawResponse;
 
   // Auto-create flashcards
   let cardsCreated = 0;
@@ -169,6 +206,24 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
       cardsCreated++;
     } catch (err) {
       console.warn('Failed to create flashcard from chat:', err);
+    }
+  }
+
+  // Record progress updates (BKT mastery)
+  let progressUpdates = 0;
+  for (const update of updates) {
+    try {
+      // Look up the curriculum node by title
+      const nodes = await searchNodes(update.item);
+      const exact = nodes.find((n) => n.title === update.item);
+      if (exact) {
+        await recordAnswer(exact.nodeId, update.correct);
+        progressUpdates++;
+      } else {
+        console.warn(`Progress marker: item "${update.item}" not found in curriculum`);
+      }
+    } catch (err) {
+      console.warn(`Failed to record progress for "${update.item}":`, err);
     }
   }
 
@@ -189,7 +244,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     console.warn('Failed to save conversation checkpoint:', err);
   }
 
-  return { text: response, cardsCreated };
+  return { text: response, cardsCreated, progressUpdates };
 }
 
 /**

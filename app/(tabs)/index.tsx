@@ -92,7 +92,7 @@ export default function ChatScreen() {
       }
 
       // Get AI response
-      const { text: response, cardsCreated } = await sendMessage(threadId, userMessage.text);
+      const { text: response, cardsCreated, progressUpdates } = await sendMessage(threadId, userMessage.text);
 
       const aiMessage: IMessage = {
         _id: `ai-${Date.now()}`,
@@ -114,6 +114,20 @@ export default function ChatScreen() {
         setTimeout(() => {
           setMessages((prev) => GiftedChat.append(prev, [cardNotif]));
         }, 500);
+      }
+
+      // Show progress update notification
+      if (progressUpdates > 0) {
+        const progressNotif: IMessage = {
+          _id: `prog-notif-${Date.now()}`,
+          text: `📊 Progress updated for ${progressUpdates} item${progressUpdates > 1 ? 's' : ''}!`,
+          createdAt: new Date(),
+          user: SENSEI_USER,
+          system: true,
+        };
+        setTimeout(() => {
+          setMessages((prev) => GiftedChat.append(prev, [progressNotif]));
+        }, cardsCreated > 0 ? 1000 : 500);
       }
     } catch (error) {
       const errorMsg: IMessage = {
