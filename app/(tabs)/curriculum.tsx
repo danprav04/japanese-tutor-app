@@ -96,6 +96,9 @@ function CurriculumItem({ item, onDelete }: { item: NodeWithProgress; onDelete: 
             </View>
           )}
           <Text style={styles.detailMeta}>
+            {item.sourceFile || 'Unknown Source'}
+          </Text>
+          <Text style={styles.detailMeta}>
             {item.attempts} attempts · N{item.jlptLevel}
           </Text>
           <TouchableOpacity

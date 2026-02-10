@@ -304,6 +304,7 @@ export interface NodeWithProgress {
   type: 'grammar' | 'vocab' | 'kanji';
   jlptLevel: number;
   contentPayload: Record<string, unknown> | null;
+  sourceFile: string | null;
   masteryScore: number;
   attempts: number;
   unlocked: boolean;
@@ -314,7 +315,7 @@ export interface NodeWithProgress {
  */
 export async function getNodesWithProgress(searchQuery?: string): Promise<NodeWithProgress[]> {
   const db = getDatabase();
-  let query = `SELECT cn.node_id, cn.title, cn.type, cn.jlpt_level, cn.content_payload,
+  let query = `SELECT cn.node_id, cn.title, cn.type, cn.jlpt_level, cn.content_payload, cn.source_file,
                       COALESCE(up.mastery_score, 0) as mastery_score,
                       COALESCE(up.attempts, 0) as attempts,
                       COALESCE(up.unlocked, 0) as unlocked
@@ -338,6 +339,7 @@ export async function getNodesWithProgress(searchQuery?: string): Promise<NodeWi
     type: row.type as 'grammar' | 'vocab' | 'kanji',
     jlptLevel: row.jlpt_level as number,
     contentPayload: row.content_payload ? JSON.parse(row.content_payload as string) : null,
+    sourceFile: row.source_file as string | null,
     masteryScore: row.mastery_score as number,
     attempts: row.attempts as number,
     unlocked: (row.unlocked as number) === 1,

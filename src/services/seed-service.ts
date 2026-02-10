@@ -23,59 +23,82 @@ export async function seedStarterCurriculum(): Promise<void> {
     `SELECT value FROM app_settings WHERE key = 'curriculum_seeded'`
   );
 
+  let isSeeded = false;
   if (result.rows && result.rows.length > 0) {
     const row = result.rows[0] as Record<string, unknown>;
     if (row.value === '1') {
-      console.log('✅ Curriculum already seeded, skipping.');
-      return;
+      isSeeded = true;
     }
   }
 
-  console.log('🌱 Seeding starter N5 curriculum...');
+  if (!isSeeded) {
+    console.log('🌱 Seeding starter N5 curriculum...');
 
-  let seededCount = 0;
+    let seededCount = 0;
 
-  for (const item of STARTER_CURRICULUM) {
-    try {
-      // 1. Add curriculum node
-      const node = await addNode(
-        item.title,
-        item.type,
-        item.jlptLevel,
-        item.content as Record<string, unknown>,
-      );
+    for (const item of STARTER_CURRICULUM) {
+      try {
+        // 1. Add curriculum node
+        const node = await addNode(
+          item.title,
+          item.type,
+          item.jlptLevel,
+          item.content as Record<string, unknown>,
+          'Initial Set'
+        );
 
-      // 2. Create a flashcard from this node
-      let front: string;
-      let back: string;
+        // 2. Create a flashcard from this node
+        let front: string;
+        let back: string;
 
-      if (item.type === 'kanji') {
-        front = item.title;
-        back = `${item.content.meaning}\n${item.content.onyomi ?? ''} / ${item.content.kunyomi ?? ''}`;
-      } else if (item.type === 'vocab') {
-        front = item.title;
-        back = `${item.content.meaning}${item.content.reading ? '\n(' + item.content.reading + ')' : ''}`;
-      } else {
-        // grammar
-        front = item.title;
-        back = `${item.content.meaning}\n${item.content.example ?? ''}`;
+        if (item.type === 'kanji') {
+          front = item.title;
+          back = `${item.content.meaning}\n${item.content.onyomi ?? ''} / ${item.content.kunyomi ?? ''}`;
+        } else if (item.type === 'vocab') {
+          front = item.title;
+          back = `${item.content.meaning}${item.content.reading ? '\n(' + item.content.reading + ')' : ''}`;
+        } else {
+          // grammar
+          front = item.title;
+          back = `${item.content.meaning}\n${item.content.example ?? ''}`;
+        }
+
+        await createFlashcard(front, back, item.type, node.nodeId);
+
+        // 3. Initialize BKT progress (unlocked for N5 starters)
+        await initializeProgress(node.nodeId, true);
+
+        seededCount++;
+      } catch (err) {
+        console.warn(`Failed to seed item "${item.title}":`, err);
       }
-
-      await createFlashcard(front, back, item.type, node.nodeId);
-
-      // 3. Initialize BKT progress (unlocked for N5 starters)
-      await initializeProgress(node.nodeId, true);
-
-      seededCount++;
-    } catch (err) {
-      console.warn(`Failed to seed item "${item.title}":`, err);
     }
+
+    // Mark as seeded
+    await db.execute(
+      `INSERT OR REPLACE INTO app_settings (key, value) VALUES ('curriculum_seeded', '1')`
+    );
+
+    console.log(`🌱 Seeded ${seededCount} curriculum items.`);
+  } else {
+    console.log('✅ Curriculum already seeded.');
   }
 
-  // Mark as seeded
-  await db.execute(
-    `INSERT OR REPLACE INTO app_settings (key, value) VALUES ('curriculum_seeded', '1')`
+  // Backfill migration: Ensure legacy items have a source
+  const migrationResult = await db.execute(
+    `SELECT value FROM app_settings WHERE key = 'source_backfill_v1'`
   );
+  
+  const isMigrated = migrationResult.rows && migrationResult.rows.length > 0 && (migrationResult.rows[0] as any).value === '1';
 
-  console.log(`🌱 Seeded ${seededCount} curriculum items.`);
+  if (!isMigrated) {
+    console.log('🔄 Backfilling source_file for legacy items...');
+    await db.execute(
+      `UPDATE curriculum_nodes SET source_file = 'Initial Set' WHERE source_file IS NULL`
+    );
+     await db.execute(
+      `INSERT OR REPLACE INTO app_settings (key, value) VALUES ('source_backfill_v1', '1')`
+    );
+    console.log('✅ Backfill complete.');
+  }
 }
