@@ -118,18 +118,18 @@ export default function SettingsScreen() {
 
           <View style={styles.modelOptions}>
             <TouchableOpacity
-              style={[styles.modelOption, currentModel === 'gemini-3-flash' && styles.modelSelected]}
-              onPress={() => handleModelChange('gemini-3-flash')}
+              style={[styles.modelOption, currentModel === 'gemini-3-flash-preview' && styles.modelSelected]}
+              onPress={() => handleModelChange('gemini-3-flash-preview')}
             >
-              <Text style={styles.modelName}>Gemini 3 Flash</Text>
+              <Text style={styles.modelName}>Gemini 3 Flash (Preview)</Text>
               <Text style={styles.modelDesc}>Fast, efficient, lower cost</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.modelOption, currentModel === 'gemini-3-pro' && styles.modelSelected]}
-              onPress={() => handleModelChange('gemini-3-pro')}
+              style={[styles.modelOption, currentModel === 'gemini-3-pro-preview' && styles.modelSelected]}
+              onPress={() => handleModelChange('gemini-3-pro-preview')}
             >
-              <Text style={styles.modelName}>Gemini 3 Pro</Text>
+              <Text style={styles.modelName}>Gemini 3 Pro (Preview)</Text>
               <Text style={styles.modelDesc}>Advanced reasoning</Text>
             </TouchableOpacity>
           </View>

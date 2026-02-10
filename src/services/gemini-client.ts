@@ -5,7 +5,7 @@
 
 import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from '@google/generative-ai';
 
-export type ModelType = 'gemini-3-flash' | 'gemini-3-pro';
+export type ModelType = 'gemini-3-flash-preview' | 'gemini-3-pro-preview';
 
 interface RateLimitError extends Error {
   status?: number;
@@ -26,7 +26,7 @@ export class GeminiClient {
   private model: ModelType;
   private generationConfig: GenerationConfig;
 
-  constructor(keys: string[], model: ModelType = 'gemini-3-flash') {
+  constructor(keys: string[], model: ModelType = 'gemini-3-flash-preview') {
     this.keys = keys.filter(k => k.trim().length > 0);
     this.model = model;
     this.generationConfig = {

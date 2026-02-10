@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
 
 -- Insert default settings
 INSERT OR IGNORE INTO app_settings (key, value) VALUES
-  ('selected_model', 'gemini-3-flash'),
+  ('selected_model', 'gemini-3-flash-preview'),
   ('total_donated', '0'),
   ('study_streak', '0'),
   ('last_study_date', '');

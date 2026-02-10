@@ -53,7 +53,7 @@ const conversationCache = new Map<string, ConversationMessage[]>();
 /**
  * Initialize the tutor with API keys and model selection.
  */
-export function initTutor(apiKeys: string[], model: ModelType = 'gemini-3-flash'): void {
+export function initTutor(apiKeys: string[], model: ModelType = 'gemini-3-flash-preview'): void {
   initGeminiClient(apiKeys, model);
 }
 

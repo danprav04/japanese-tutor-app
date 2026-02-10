@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 
-export type ModelType = 'gemini-3-flash' | 'gemini-3-pro';
+export type ModelType = 'gemini-3-flash-preview' | 'gemini-3-pro-preview';
 
 interface AppState {
   // API Keys
@@ -47,7 +47,7 @@ const MODEL_STORAGE = 'selected_model';
 export const useAppStore = create<AppState>((set, get) => ({
   // Initial state
   apiKeys: [],
-  currentModel: 'gemini-3-flash',
+  currentModel: 'gemini-3-flash-preview',
   isGeminiReady: false,
   isDatabaseReady: false,
   isLoading: false,
@@ -103,7 +103,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       ]);
 
       const apiKeys = storedKeys ? JSON.parse(storedKeys) : [];
-      const currentModel = (storedModel as ModelType) || 'gemini-3-flash';
+      let currentModel = (storedModel as ModelType) || 'gemini-3-flash-preview';
+      
+      // Validate model name (in case old invalid name is stored)
+      if (currentModel !== 'gemini-3-flash-preview' && currentModel !== 'gemini-3-pro-preview') {
+        currentModel = 'gemini-3-flash-preview';
+      }
 
       set({
         apiKeys,
