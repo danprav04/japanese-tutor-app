@@ -13,6 +13,7 @@ import { buildCurriculumContext, getReviewContext } from './curriculum-context';
 import { recordAnswer } from './progress-service';
 import { updateStudyStreak } from './progress-service';
 import { searchNodes } from './curriculum-service';
+import { lookupWord, formatForTutor } from './jisho-service';
 import {
   detectDocumentLearningIntent,
   resolveDocument,
@@ -40,6 +41,21 @@ const SYSTEM_PROMPT = `You are a friendly and encouraging Japanese language tuto
 
 You have access to the student's CURRICULUM STATUS below. Use it to guide your teaching:
 
+## Hidden Thinking Phase (CRITICAL)
+Before EVERY response, you MUST include a hidden thinking block. This is your internal analysis — the student will never see it.
+Wrap your thinking in [THINK]...[/THINK] tags. In this block:
+1. **Diagnose**: Identify any errors in the student's Japanese (particle mistakes, conjugation, word choice)
+2. **Feedback strategy**: Decide which feedback type to use:
+   - Explicit correction (when student is stuck/confused)
+   - Recast (reformulate naturally for minor slips)
+   - Metalinguistic clue ("Remember, this verb is irregular")
+   - Clarification request ("Could you say that differently?")
+3. **Review plan**: Note which review items from the ITEMS DUE FOR REVIEW section you'll weave into your response
+4. **Pitch accent**: If teaching vocab, note the pitch accent pattern
+
+Example:
+[THINK]Student said "watashi wa gakkou ni ikimashita". Correct! They used particle に correctly with movement verb. I'll use a Recast to reinforce. For review, I'll work in 食べる from the due items by asking about lunch.[/THINK]
+
 ## Teaching Strategy (SRS-Driven)
 1. **Prioritize unmastered items** (📕 NOT YET LEARNED section) — introduce these in your lessons
 2. **Review weak items** (📙 STILL LEARNING section) — weave them into conversations and exercises
@@ -49,19 +65,33 @@ You have access to the student's CURRICULUM STATUS below. Use it to guide your t
 6. Mix grammar + vocab together (e.g., teach a grammar pattern using vocab from the curriculum)
 7. After explaining, quiz the student on what you just taught
 
+## Contextual SRS Review (MANDATORY)
+If there is an "ITEMS DUE FOR REVIEW" section below, you MUST:
+- Use at least ONE review keyword/item naturally in EVERY response
+- Work them into example sentences, questions, or conversation
+- Do NOT create a separate "review section" — blend them seamlessly
+Example: If 図書館 (library) is due for review, say: "Great job with that grammar! 📝 By the way, 昨日図書館に行きましたか？ (Did you go to the library yesterday?)"
+
+## Pitch Accent
+When introducing vocabulary, include the pitch accent pattern after the reading:
+- Use H (high) and L (low) notation: e.g., はし (箸) — chopsticks — Pitch: HL
+- This helps students distinguish words like はし (箸, HL = chopsticks) vs はし (橋, LH = bridge)
+- For compound words, show the full pattern: e.g., がっこう (学校) — school — Pitch: LHLL
+
 ## Response Guidelines
 - Keep responses concise but informative (mobile screen)
 - Use emoji sparingly for friendliness (🎌, ✨, 📝)
 - Always show Japanese text alongside English translations
 - For grammar, explain the pattern and give 2-3 examples
-- For vocab, include reading (furigana), meaning, and usage
+- For vocab, include reading (furigana), meaning, pitch accent, and usage
 - When the student asks to practice, create exercises using curriculum items
 - Celebrate progress and encourage continued study
 
 ## Flashcard Generation
 When you teach a NEW vocabulary word, grammar point, or kanji, include a flashcard block at the END of your response:
-[FLASHCARD]{"front":"日本語 text","back":"English meaning (reading)","type":"vocab"}[/FLASHCARD]
+[FLASHCARD]{"front":"日本語 text","back":"English meaning (reading) [Pitch: HLL]","type":"vocab"}[/FLASHCARD]
 Valid types: vocab, grammar, kanji. You may include multiple blocks.
+For vocab flashcards, always include the pitch accent pattern in the back field.
 Do NOT include flashcards for items already in the curriculum (check the status below).
 
 ## Exercise Generation (Quiz Mode)
@@ -74,6 +104,9 @@ Valid types: fill-blank, translate, choose.
 - Give ONE exercise at a time, wait for the student to answer
 - After they answer, provide Socratic feedback (explain WHY, not just right/wrong)
 - Then offer the next exercise or ask if they want to continue
+
+## Dictionary Results
+If a [DICTIONARY] block is present in the conversation, use it as a ground-truth reference for your definitions. Prefer dictionary data over your own knowledge for accuracy.
 
 ## Progress Tracking
 When you quiz the student and they answer, record their result using:
@@ -89,13 +122,21 @@ const DOCUMENT_LEARNING_PROMPT = `You are a friendly and encouraging Japanese la
 You are in DOCUMENT LEARNING MODE. The student wants to learn from a specific document.
 Below you will see the document's curriculum items and the student's progress on each.
 
+## Hidden Thinking Phase (CRITICAL)
+Before EVERY response, include a hidden thinking block wrapped in [THINK]...[/THINK] tags.
+Use it to:
+1. Diagnose any errors in the student's input
+2. Decide which feedback type to use (explicit, recast, metalinguistic, clarification)
+3. Plan what to teach next based on document progress
+4. Note pitch accent patterns for vocabulary items
+
 ## Teaching Rules (CRITICAL — follow these strictly)
 1. **Teach ONE item at a time** — never introduce multiple new items in a single message
 2. **Keep responses SHORT** — 3-5 sentences max. Mobile screen, remember!
 3. **Wait for the student's answer** before moving on to the next item
 4. **Start from the 🎯 NEXT ITEM TO TEACH** shown in the document status
 5. **Follow this flow for each item:**
-   a. Introduce the item (what it means, how to read it)
+   a. Introduce the item (what it means, how to read it, pitch accent for vocab)
    b. Give one clear example
    c. Ask a simple question to check understanding
    d. If they get it right → mark progress and move to next item
@@ -104,18 +145,23 @@ Below you will see the document's curriculum items and the student's progress on
 7. **Celebrate small wins** — when they master an item, acknowledge it! 🎉
 8. When ALL items are mastered, congratulate them and suggest reviewing weak items
 
+## Pitch Accent
+When teaching vocabulary, include the pitch accent pattern: e.g., たべる (食べる) — to eat — Pitch: LHH
+Use H (high) and L (low) notation.
+
 ## Response Guidelines
 - Keep responses concise (mobile screen)
 - Use emoji sparingly for friendliness (🎌, ✨, 📝)
 - Always show Japanese text alongside English translations
-- For vocab: include reading (furigana), meaning, and one usage example
+- For vocab: include reading (furigana), meaning, pitch accent, and one usage example
 - For grammar: explain the pattern and give one example
 - For kanji: show readings (on/kun) and meaning
 
 ## Flashcard Generation
 When you teach a NEW vocabulary word, grammar point, or kanji, include a flashcard block at the END of your response:
-[FLASHCARD]{"front":"日本語 text","back":"English meaning (reading)","type":"vocab"}[/FLASHCARD]
+[FLASHCARD]{"front":"日本語 text","back":"English meaning (reading) [Pitch: HLL]","type":"vocab"}[/FLASHCARD]
 Valid types: vocab, grammar, kanji. Only include ONE flashcard per message.
+For vocab flashcards, include pitch accent in the back field.
 
 ## Progress Tracking
 When you quiz the student and they answer, record their result using:
@@ -165,6 +211,19 @@ export interface ParsedExercise {
   options?: string[];
   answer: string;
   item: string;
+}
+
+function parseThinkingBlocks(response: string): { cleanText: string; thinking: string | null } {
+  const regex = /\[THINK\]([^]*?)\[\/THINK\]/g;
+  let thinking: string | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(response)) !== null) {
+    thinking = (thinking || '') + match[1].trim();
+  }
+
+  const cleanText = response.replace(/\[THINK\][^]*?\[\/THINK\]/g, '').trim();
+  return { cleanText, thinking };
 }
 
 function parseFlashcards(response: string): { cleanText: string; cards: ParsedFlashcard[] } {
@@ -305,6 +364,20 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     }
   }
 
+  // ─── Jisho dictionary lookup ──────────────────────────────
+  let dictionaryContext = '';
+  try {
+    const dictQuery = detectDictionaryQuery(userMessage);
+    if (dictQuery) {
+      const results = await lookupWord(dictQuery);
+      if (results.length > 0) {
+        dictionaryContext = `\n\n[DICTIONARY]\n${formatForTutor(results)}\n[/DICTIONARY]`;
+      }
+    }
+  } catch (err) {
+    console.warn('Jisho lookup failed (non-critical):', err);
+  }
+
   // Add user message
   const userMsg: ConversationMessage = {
     role: 'user',
@@ -333,8 +406,8 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     }
 
     fullPrompt = docContext
-      ? `${DOCUMENT_LEARNING_PROMPT}\n\n${docContext}\n\n---\n\n${conversationContext}\n\nSensei:`
-      : `${DOCUMENT_LEARNING_PROMPT}\n\n${conversationContext}\n\nSensei:`;
+      ? `${DOCUMENT_LEARNING_PROMPT}\n\n${docContext}${dictionaryContext}\n\n---\n\n${conversationContext}\n\nSensei:`
+      : `${DOCUMENT_LEARNING_PROMPT}${dictionaryContext}\n\n${conversationContext}\n\nSensei:`;
   } else {
     // Normal mode — use general curriculum context + review context
     let curriculumContext = '';
@@ -352,21 +425,27 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
       .filter(Boolean)
       .join('\n\n');
 
-    fullPrompt = `${contextParts}\n\n---\n\n${conversationContext}\n\nSensei:`;
+    fullPrompt = `${contextParts}${dictionaryContext}\n\n---\n\n${conversationContext}\n\nSensei:`;
   }
 
   // Generate response
   const rawResponse = await client.generate(fullPrompt);
 
+  // Strip hidden thinking blocks (CoT reasoning)
+  const { cleanText: afterThinking, thinking } = parseThinkingBlocks(rawResponse);
+  if (thinking) {
+    console.log('🧠 Tutor thinking:', thinking.substring(0, 200));
+  }
+
   // Parse embedded flashcards
-  const { cleanText: afterFlashcards, cards } = parseFlashcards(rawResponse);
+  const { cleanText: afterFlashcards, cards } = parseFlashcards(afterThinking || rawResponse);
 
   // Parse embedded progress markers
-  const { cleanText: afterProgress, updates } = parseProgressMarkers(afterFlashcards || rawResponse);
+  const { cleanText: afterProgress, updates } = parseProgressMarkers(afterFlashcards || afterThinking || rawResponse);
 
   // Parse embedded exercises
-  const { cleanText: afterExercises, exercises } = parseExercises(afterProgress || afterFlashcards || rawResponse);
-  const response = afterExercises || afterProgress || afterFlashcards || rawResponse;
+  const { cleanText: afterExercises, exercises } = parseExercises(afterProgress || afterFlashcards || afterThinking || rawResponse);
+  const response = afterExercises || afterProgress || afterFlashcards || afterThinking || rawResponse;
 
   // Auto-create flashcards
   let cardsCreated = 0;
@@ -440,5 +519,31 @@ export async function loadConversationHistory(threadId: string): Promise<Convers
     // Database may not be ready yet
   }
   return [];
+}
+
+// ─── Dictionary Query Detection ──────────────────────────────
+
+/**
+ * Detect if the user is asking about a specific Japanese word.
+ * Returns the query string if detected, null otherwise.
+ */
+function detectDictionaryQuery(message: string): string | null {
+  // Check for explicit lookup patterns
+  const patterns = [
+    /what (?:does|is|means?) ["「]?([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)["」]?/i,
+    /(?:meaning|definition) of ["「]?([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)["」]?/i,
+    /([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)(?:の意味|って(?:なに|何)|とは|ってどういう意味)/,
+    /look ?up ["「]?([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)["」]?/i,
+    /translate ["「]?([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)["」]?/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
 }
 

@@ -9,14 +9,14 @@ This checklist compares the architectural vision in "Building an AI Japanese Tut
 | **Bayesian Knowledge Tracing (BKT)** | ✅ Implemented | `user_progress` table tracks mastery, guess, slip, and transition probabilities. |
 | **Spaced Repetition (SRS)** | ✅ Implemented | `cards` table and `ts-fsrs` library are used for flashcard scheduling. |
 | **Zone of Proximal Development (ZPD)** | ⚠️ Partial | The "Document Learning" mode highlights "Next Item to Teach", which serves this purpose, but it's not a global "Curriculum Architect" agent. |
-| **Contextual SRS** | ❌ Missing | The agent teaches *new* items or reviews based on user prompts, but doesn't proactively inject *old* vocab into conversation just for review (it's responsive, not proactive). |
+| **Contextual SRS** | ✅ Implemented | System prompt now mandates proactive injection of due review items into every response. `getReviewContext()` feeds due cards and weak items. |
 
 ## 2. System Orchestration
 
 | Feature | Status | Notes |
 | :--- | :---: | :--- |
 | **LangGraph (State Machine)** | ❌ Missing | Implemented as a custom SQLite-based checkpointer + Single Prompt Loop. No explicit graph state machine. |
-| **Multi-Agent Architecture** | ❌ Missing | Single `tutor-agent.ts` handles everything via System Prompt. No separate "Analyst" or "Architect". |
+| **Multi-Agent Architecture** | 🔄 Adapted | Single agent with Chain-of-Thought `[THINK]` blocks simulating Analyst role: diagnoses errors, selects feedback type, plans review integration. |
 | **Persistence** | ✅ Implemented | Custom SQLite `checkpoints` table persists conversation state effectively. |
 
 ## 3. Knowledge Representation
@@ -31,10 +31,10 @@ This checklist compares the architectural vision in "Building an AI Japanese Tut
 
 | Feature | Status | Notes |
 | :--- | :---: | :--- |
-| **Jisho / Dictionary Tool** | ❌ Missing | Relies on Gemini's internal knowledge. No external specific dictionary tool. |
+| **Jisho / Dictionary Tool** | ✅ Implemented | `jisho-service.ts` wraps the public Jisho API for ground-truth definitions. Integrated into `sendMessage()` via `detectDictionaryQuery()`. |
 | **Anki Integration** | 🔄 Internalized | Built-in Flashcard system (`cards` table) replaces external Anki integration. |
 | **Morphological Analyzer (Sudachi)** | ❌ Missing | No NLP library. Relies on Gemini to parse/tokenize text. |
-| **Pitch Accent Visualization** | ❌ Missing | No `Onsei` or audio analysis tools implemented. |
+| **Pitch Accent Visualization** | ⚠️ Partial | Text-based H/L pitch accent patterns in tutor responses and flashcards. No audio/SVG visualization. |
 
 ## 5. User Interface & Experience
 
@@ -47,7 +47,7 @@ This checklist compares the architectural vision in "Building an AI Japanese Tut
 
 ## Recommendations for Next Steps
 
-1.  **Enhance ZPD/Contextual SRS**: Modify `tutor-agent.ts` to fetch "Stale/Due" cards from `card-service` and inject them into the System Prompt as "Keywords to use in this conversation".
-2.  **Visual Pitch Accent**: This is a "Wow" factor. Since local Python isn't an option, use a lightweight JS library or simply ask Gemini to generate "Pitch Pattern: L-H-H-L" text representations.
-3.  **Refine Multi-Agent Simulation**: Even without LangGraph, you can split the System Prompt into "Phases" (Thought -> Analysis -> Response) to mimic the "Analyst" role, improving correction quality.
-4.  **Vector Search**: Enable the vectors for document chunks to allow asking "What does the document say about X?" beyond just structured curriculum learning.
+1.  **SVG Pitch Accent Visualization**: Upgrade from text H/L patterns to visual pitch graphs using `react-native-svg`.
+2.  **Vector Search**: Enable the vectors for document chunks to allow asking "What does the document say about X?" beyond just structured curriculum learning.
+3.  **Full Multi-Agent**: Split the single agent into separate orchestrator + specialist agents for deeper pedagogical reasoning.
+4.  **Monetization**: Integrate RevenueCat for donations and ad-free experience.
