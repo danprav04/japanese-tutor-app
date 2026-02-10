@@ -1,108 +1,161 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState, useEffect, useCallback } from 'react';
-import * as DocumentPicker from 'expo-document-picker';
-import { useFocusEffect } from 'expo-router';
-import { useAppStore, type ModelType } from '../../src/store/app-store';
-import { MODEL_RATES } from '../../src/services/gemini-client';
-import { processDocument, getUploadedDocuments } from '../../src/services/document-service';
-import { resetProgress } from '../../src/services/progress-service';
+  import { useState, useEffect, useCallback, useRef } from 'react';
+  import * as DocumentPicker from 'expo-document-picker';
+  import { useFocusEffect } from 'expo-router';
+  import { useAppStore, type ModelType } from '../../src/store/app-store';
+  import { MODEL_RATES } from '../../src/services/gemini-client';
+  import { processDocument, getUploadedDocuments, deleteDocument } from '../../src/services/document-service';
+  import { resetProgress } from '../../src/services/progress-service';
 
-export default function SettingsScreen() {
-  const {
-    apiKeys,
-    currentModel,
-    addApiKey,
-    removeApiKey,
-    setCurrentModel,
-  } = useAppStore();
-
-  const [newKey, setNewKey] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadedDocs, setUploadedDocs] = useState<Array<{ documentId: string; filename: string; processed: number }>>([]);
-
-  // Load uploaded documents on focus
-  useFocusEffect(
-    useCallback(() => {
-      (async () => {
+  export default function SettingsScreen() {
+    const {
+      apiKeys,
+      currentModel,
+      addApiKey,
+      removeApiKey,
+      setCurrentModel,
+    } = useAppStore();
+  
+    const [newKey, setNewKey] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [progressMessage, setProgressMessage] = useState('');
+    const [uploadedDocs, setUploadedDocs] = useState<Array<{ documentId: string; filename: string; processed: number }>>([]);
+    const abortController = useRef<AbortController | null>(null);
+  
+    const loadDocuments = useCallback(async () => {
         try {
-          const docs = await getUploadedDocuments();
-          setUploadedDocs(docs);
+            const docs = await getUploadedDocuments();
+            setUploadedDocs(docs);
         } catch {}
-      })();
-    }, [])
-  );
+    }, []);
 
-  const handleAddKey = () => {
-    if (newKey.trim()) {
-      addApiKey(newKey.trim());
-      setNewKey('');
-    }
-  };
-
-  const handleRemoveKey = (index: number) => {
-    Alert.alert('Remove Key', 'Are you sure you want to remove this API key?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => removeApiKey(index),
-      },
-    ]);
-  };
-
-  const handleModelChange = (model: ModelType) => {
-    setCurrentModel(model);
-  };
-
-  const handleUploadMaterial = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'text/plain', 'text/markdown'],
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const file = result.assets[0];
-
-        if (!useAppStore.getState().isGeminiReady) {
-          Alert.alert('API Key Required', 'Please add a Gemini API key first to process documents.');
-          return;
-        }
-
-        Alert.alert(
-          'Process File',
-          `${file.name}\n\nThe AI will analyze this and add vocabulary, grammar, and kanji to your curriculum.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Process',
-              onPress: async () => {
-                setIsProcessing(true);
-                try {
-                  const count = await processDocument(
-                    file.uri,
-                    file.name,
-                    file.mimeType || 'text/plain',
-                  );
-                  Alert.alert('✅ Success', `Imported ${count} items from ${file.name}!`);
-                  // Refresh doc list
-                  const docs = await getUploadedDocuments();
-                  setUploadedDocs(docs);
-                } catch (error) {
-                  Alert.alert('Error', error instanceof Error ? error.message : 'Failed to process file.');
-                } finally {
-                  setIsProcessing(false);
-                }
-              },
-            },
-          ]
-        );
+    // Load uploaded documents on focus
+    useFocusEffect(
+      useCallback(() => {
+        loadDocuments();
+      }, [loadDocuments])
+    );
+  
+    const handleAddKey = () => {
+      if (newKey.trim()) {
+        addApiKey(newKey.trim());
+        setNewKey('');
       }
-    } catch (error) {
-      console.error('Document picker error:', error);
-    }
-  };
+    };
+  
+    const handleRemoveKey = (index: number) => {
+      Alert.alert('Remove Key', 'Are you sure you want to remove this API key?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => removeApiKey(index),
+        },
+      ]);
+    };
+  
+    const handleModelChange = (model: ModelType) => {
+      setCurrentModel(model);
+    };
+
+    const handleCancelUpload = () => {
+        if (abortController.current) {
+            abortController.current.abort();
+            abortController.current = null;
+        }
+    };
+
+    const handleRemoveDocument = (documentId: string, filename: string) => {
+        Alert.alert(
+            'Delete Document',
+            `Are you sure you want to delete "${filename}"? This will remove all vocabulary and grammar extracted from it.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteDocument(documentId);
+                            loadDocuments(); // Refresh list
+                        } catch (error) {
+                            Alert.alert('Error', 'Failed to delete document.');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+  
+    const handleUploadMaterial = async () => {
+      try {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: ['application/pdf', 'text/plain', 'text/markdown'],
+          copyToCacheDirectory: true,
+        });
+  
+        if (!result.canceled && result.assets[0]) {
+          const file = result.assets[0];
+  
+          if (!useAppStore.getState().isGeminiReady) {
+            Alert.alert('API Key Required', 'Please add a Gemini API key first to process documents.');
+            return;
+          }
+  
+          Alert.alert(
+            'Process File',
+            `${file.name}\n\nThe AI will analyze this and add vocabulary, grammar, and kanji to your curriculum.`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Process',
+                onPress: async () => {
+                  setIsProcessing(true);
+                  setUploadProgress(0);
+                  setProgressMessage('Initializing...');
+                  abortController.current = new AbortController();
+
+                  try {
+                    const count = await processDocument(
+                      file.uri,
+                      file.name,
+                      file.mimeType || 'text/plain',
+                      {
+                        signal: abortController.current.signal,
+                        onProgress: (progress, message) => {
+                            setUploadProgress(progress);
+                            setProgressMessage(message);
+                        }
+                      }
+                    );
+                    Alert.alert('✅ Success', `Imported ${count} items from ${file.name}!`);
+                    // Refresh doc list
+                    const docs = await getUploadedDocuments();
+                    setUploadedDocs(docs);
+                  } catch (error) {
+                    const msg = error instanceof Error ? error.message : 'Failed to process file.';
+                    if (msg === 'Aborted' || msg === 'Process cancelled by user.') {
+                        // Silent fail for abort
+                    } else {
+                        Alert.alert('Error', msg);
+                    }
+                  } finally {
+                    setIsProcessing(false);
+                    setUploadProgress(0);
+                    setProgressMessage('');
+                    abortController.current = null;
+                  }
+                },
+              },
+            ]
+          );
+        }
+      } catch (error) {
+        console.error('Document picker error:', error);
+      }
+    };
 
   const handleResetProgress = () => {
     Alert.alert(
@@ -222,20 +275,56 @@ export default function SettingsScreen() {
             Upload PDFs, text files, or markdown to expand your curriculum
           </Text>
 
-          <TouchableOpacity
-            style={[styles.uploadButton, isProcessing && styles.uploadDisabled]}
-            onPress={handleUploadMaterial}
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <View style={styles.uploadProcessing}>
+          {isProcessing ? (
+            <View style={styles.processingContainer}>
+              <View style={styles.progressRow}>
                 <ActivityIndicator size="small" color="#6366f1" />
-                <Text style={styles.uploadButtonText}>Processing...</Text>
+                <Text style={styles.progressText}>
+                    {progressMessage || 'Processing...'} ({Math.round(uploadProgress * 100)}%)
+                </Text>
               </View>
-            ) : (
-              <Text style={styles.uploadButtonText}>📁 Choose File</Text>
-            )}
-          </TouchableOpacity>
+              
+              <View style={styles.progressBarBg}>
+                <View style={[styles.progressBarFill, { width: `${Math.round(uploadProgress * 100)}%` }]} />
+              </View>
+              
+              <TouchableOpacity style={styles.cancelButton} onPress={handleCancelUpload}>
+                <Text style={styles.cancelButtonText}>Cancel Upload</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+                style={styles.uploadButton}
+                onPress={handleUploadMaterial}
+            >
+                <Text style={styles.uploadButtonText}>📁 Choose File</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Document list */}
+          {uploadedDocs.length > 0 && (
+            <View style={styles.docList}>
+                <Text style={styles.subHeader}>Uploaded Documents</Text>
+                {uploadedDocs.map((doc) => (
+                    <View key={doc.documentId} style={styles.docItem}>
+                        <View style={styles.docInfo}>
+                            <Text style={styles.docName} numberOfLines={1}>{doc.filename}</Text>
+                            <Text style={styles.docStatus}>
+                                {doc.processed === -1 ? '❌ Failed' : 
+                                 doc.processed === 0 ? '⏳ Processing' : 
+                                 '✅ API Processed'}
+                            </Text>
+                        </View>
+                        <TouchableOpacity 
+                            onPress={() => handleRemoveDocument(doc.documentId, doc.filename)}
+                            style={styles.deleteDocButton}
+                        >
+                            <Text style={styles.deleteDocText}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                ))}
+            </View>
+          )}
 
           {/* Document list hidden — managed via Curriculum tab */}
         </View>
@@ -409,6 +498,18 @@ const styles = StyleSheet.create({
     marginTop: 12,
     gap: 8,
   },
+  docList: {
+    marginTop: 20,
+    gap: 10,
+  },
+  subHeader: {
+    color: '#888',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 5,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   docItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -417,14 +518,28 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
   },
-  docName: {
-    color: '#ccc',
-    fontSize: 14,
+  docInfo: {
     flex: 1,
+    marginRight: 10,
+  },
+  docName: {
+    color: '#fff',
+    fontSize: 14,
+    marginBottom: 4,
   },
   docStatus: {
-    fontSize: 16,
-    marginLeft: 8,
+    color: '#666',
+    fontSize: 12,
+  },
+  deleteDocButton: {
+    padding: 8,
+    backgroundColor: '#2a1a1a',
+    borderRadius: 8,
+  },
+  deleteDocText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   docStatusDone: {},
   docStatusFailed: {},
@@ -457,5 +572,44 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 16,
     fontWeight: '600',
+  },
+  processingContainer: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  progressText: {
+    color: '#fff',
+    fontSize: 14,
+    flex: 1,
+  },
+  progressBarBg: {
+    height: 6,
+    backgroundColor: '#333',
+    borderRadius: 3,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#6366f1',
+    borderRadius: 3,
+  },
+  cancelButton: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

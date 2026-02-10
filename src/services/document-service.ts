@@ -81,6 +81,11 @@ Extract as many items as possible (up to 15). Focus on the most useful and commo
 
 // ─── Public API ──────────────────────────────────────────────
 
+export interface ProcessOptions {
+  onProgress?: (progress: number, message: string) => void;
+  signal?: AbortSignal;
+}
+
 /**
  * Process an uploaded document and import its content into the curriculum.
  *
@@ -90,6 +95,7 @@ export async function processDocument(
   fileUri: string,
   fileName: string,
   fileType: string,
+  options?: ProcessOptions
 ): Promise<number> {
   const client = getGeminiClient();
   
@@ -98,34 +104,56 @@ export async function processDocument(
   client.setModel(currentModel);
 
   const db = getDatabase();
+  
+  // 1. Check if document already exists
+  const checkResult = await db.execute(
+    'SELECT document_id FROM documents WHERE filename = ?',
+    [fileName]
+  );
+  
+  if (checkResult.rows && checkResult.rows.length > 0) {
+    throw new Error('Document with this name already exists.');
+  }
 
-  // 1. Read file content using SDK 54 File API
-  let textContent: string;
+  options?.onProgress?.(0.05, 'Reading file...');
+  if (options?.signal?.aborted) throw new Error('Aborted');
+
+  // 2. Read file content
+  let textContent = '';
   try {
     const file = new File(fileUri);
     textContent = await file.text();
-  } catch (err) {
-    throw new Error(`Failed to read file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+  } catch (error) {
+    console.error('Failed to read file:', error);
+    throw new Error('Failed to read file content. Ensure it is a valid text file.');
   }
 
   if (!textContent || textContent.trim().length === 0) {
     throw new Error('File is empty or could not be read.');
   }
 
-  // 2. Store document record
+  // 3. Store document record
   const documentId = uuidv4();
   await db.execute(
     `INSERT INTO documents (document_id, filename, file_type, processed) VALUES (?, ?, ?, 0)`,
     [documentId, fileName, fileType]
   );
 
-  // 3. Split into chunks and extract from each
+  // 4. Split into chunks and extract from each
   // We use 2000 chars as a safe baseline. The splitting logic is now robust enough to handle this.
   const textChunks = splitForExtraction(textContent, 2000);
   const allItems: ExtractedItem[] = [];
 
   try {
     for (let i = 0; i < textChunks.length; i++) {
+      // Check for cancellation
+      if (options?.signal?.aborted) {
+        throw new Error('Process cancelled by user.');
+      }
+
+      const progress = 0.1 + (i / textChunks.length) * 0.8; // 10% to 90%
+      options?.onProgress?.(progress, `Analyzing part ${i + 1} of ${textChunks.length}...`);
+
       const prompt = buildExtractionPrompt(textChunks[i], i, textChunks.length);
       
       // Debug: Log progress
@@ -141,7 +169,16 @@ export async function processDocument(
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
+    
+    options?.onProgress?.(0.95, 'Saving to database...');
   } catch (err) {
+    if ((err as Error).message === 'Process cancelled by user.') {
+        await db.execute(
+          `UPDATE documents SET processed = -1 WHERE document_id = ?`,
+          [documentId]
+        );
+        throw err;
+    }
     await db.execute(
       `UPDATE documents SET processed = -1 WHERE document_id = ?`,
       [documentId]
@@ -264,6 +301,40 @@ export async function getUploadedDocuments(): Promise<Array<{
     totalChunks: (row.total_chunks as number) || 0,
     createdAt: row.created_at as string,
   }));
+}
+
+/**
+ * Delete a document and all content generated from it.
+ */
+export async function deleteDocument(documentId: string): Promise<void> {
+  const db = getDatabase();
+  
+  // 1. Get filename to clean up nodes
+  const result = await db.execute(
+    'SELECT filename FROM documents WHERE document_id = ?',
+    [documentId]
+  );
+  
+  if (!result.rows || result.rows.length === 0) {
+    throw new Error('Document not found');
+  }
+  
+  const filename = result.rows[0].filename as string;
+  
+  // 2. Delete nodes sourced from this file (this effectively undoes the import)
+  // Note: We might want to keep nodes if they've been manually edited or have progress,
+  // but usually "delete document" implies "remove what I added".
+  // Since we don't have a direct foreign key from nodes to documents, we use source_file.
+  await db.execute(
+    'DELETE FROM curriculum_nodes WHERE source_file = ?',
+    [filename]
+  );
+
+  // 3. Delete the document record
+  await db.execute(
+    'DELETE FROM documents WHERE document_id = ?',
+    [documentId]
+  );
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
