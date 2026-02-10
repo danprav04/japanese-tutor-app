@@ -52,7 +52,7 @@ const EXTRACTION_SCHEMA = `{
   ]
 }`;
 
-const CHUNK_SIZE = 15000; // characters per Gemini extraction call
+const CHUNK_SIZE = 4000; // characters per Gemini extraction call
 
 function buildExtractionPrompt(text: string, chunkIndex: number, totalChunks: number): string {
   const chunkNote = totalChunks > 1
@@ -75,7 +75,7 @@ Material to analyze:
 ${text}
 ---
 
-Extract as many items as possible (up to 30). Focus on the most useful and common items first.`;
+Extract as many items as possible (up to 15). Focus on the most useful and common items first.`;
 }
 
 // ─── Public API ──────────────────────────────────────────────
@@ -130,6 +130,7 @@ export async function processDocument(
       `UPDATE documents SET processed = -1 WHERE document_id = ?`,
       [documentId]
     );
+    console.error(`Process Document Error: ${err instanceof Error ? err.message : String(err)}`);
     throw new Error(`AI extraction failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
   }
 

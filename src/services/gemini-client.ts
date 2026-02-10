@@ -33,7 +33,7 @@ export class GeminiClient {
       temperature: 0.7,
       topP: 0.95,
       topK: 40,
-      maxOutputTokens: 2048,
+      maxOutputTokens: 8192,
     };
 
     if (this.keys.length === 0) {
@@ -64,24 +64,24 @@ export class GeminiClient {
   /**
    * Create a GenerativeModel instance with current key
    */
-  private getGenerativeModel(): GenerativeModel {
+  private getGenerativeModel(configOverride?: Partial<GenerationConfig>): GenerativeModel {
     const genAI = new GoogleGenerativeAI(this.getCurrentKey());
     return genAI.getGenerativeModel({
       model: this.model,
-      generationConfig: this.generationConfig,
+      generationConfig: { ...this.generationConfig, ...configOverride },
     });
   }
 
   /**
    * Generate text response with retry on rate limit
    */
-  async generate(prompt: string, systemPrompt?: string): Promise<string> {
+  async generate(prompt: string, systemPrompt?: string, configOverride?: Partial<GenerationConfig>): Promise<string> {
     const maxRetries = Math.min(this.keys.length, 3);
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        const model = this.getGenerativeModel();
+        const model = this.getGenerativeModel(configOverride);
 
         // Build the prompt with optional system instruction
         const fullPrompt = systemPrompt 
@@ -146,15 +146,41 @@ ${schema}
 
 Do not include any other text, markdown, or explanation. Only output the JSON object.`;
 
-    const response = await this.generate(jsonPrompt);
+    const response = await this.generate(jsonPrompt, undefined, { responseMimeType: 'application/json' });
     
-    // Extract JSON from response (in case there's extra text)
-    const jsonMatch = response.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from response');
-    }
+    // Clean up response (although JSON mode usually handles this well)
+    // Sometimes models wrap in markdown even in JSON mode
+    const cleanedResponse = response.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
 
-    return JSON.parse(jsonMatch[0]) as T;
+    try {
+      return JSON.parse(cleanedResponse) as T;
+    } catch (e) {
+      console.warn('JSON parse failed, attempting repair...');
+      try {
+         const repaired = tryRepairJson(cleanedResponse);
+         console.warn('Repaired JSON:', repaired);
+         return JSON.parse(repaired) as T;
+      } catch (repairError) {
+         // Fallback to regex extraction if simple parse fails
+         const jsonMatch = response.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+         if (!jsonMatch) {
+           console.error('Failed to extract JSON. Raw response:', response);
+           throw new Error('Failed to extract JSON from response');
+         }
+         try {
+           return JSON.parse(jsonMatch[0]) as T;
+         } catch (innerError) {
+           // Try repairing the regex match too
+           try {
+             const repairedMatch = tryRepairJson(jsonMatch[0]);
+             return JSON.parse(repairedMatch) as T;
+           } catch (finalError) {
+             console.error('Failed to parse extracted JSON. Match:', jsonMatch[0]);
+             throw new Error('Failed to parse JSON from response');
+           }
+         }
+      }
+    }
   }
 
   /**
@@ -167,6 +193,7 @@ Do not include any other text, markdown, or explanation. Only output the JSON ob
     const result = await embeddingModel.embedContent(text);
     return result.embedding.values;
   }
+
 
   /**
    * Add a new API key
@@ -219,6 +246,60 @@ Do not include any other text, markdown, or explanation. Only output the JSON ob
   setGenerationConfig(config: Partial<GenerationConfig>): void {
     this.generationConfig = { ...this.generationConfig, ...config };
   }
+}
+
+/**
+ * Attempt to repair truncated/invalid JSON string
+ */
+function tryRepairJson(jsonStr: string): string {
+  let repaired = jsonStr.trim();
+  
+  // Check if it ends with a comma (common in truncated arrays)
+  if (repaired.endsWith(',')) {
+    repaired = repaired.slice(0, -1);
+  }
+  
+  const stack: string[] = [];
+  let inString = false;
+  let escape = false;
+  
+  for (let i = 0; i < repaired.length; i++) {
+    const char = repaired[i];
+    
+    if (char === '\\' && inString) {
+      escape = !escape;
+      continue;
+    }
+    
+    if (char === '"' && !escape) {
+      inString = !inString;
+    }
+    
+    if (!inString) {
+      if (char === '{') stack.push('}');
+      else if (char === '[') stack.push(']');
+      else if (char === '}' || char === ']') {
+        const expected = stack.length > 0 ? stack[stack.length - 1] : null;
+        if (expected === char) {
+            stack.pop();
+        } 
+        // If mismatch, we ignore or it's a structural error we can't easily fix without backtracking
+      }
+    }
+    
+    if (escape) escape = false;
+  }
+
+  if (inString) {
+    repaired += '"'; // Close the open string
+  }
+  
+  // Close remaining containers in reverse order
+  while (stack.length > 0) {
+    repaired += stack.pop();
+  }
+  
+  return repaired;
 }
 
 // Singleton instance

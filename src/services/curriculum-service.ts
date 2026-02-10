@@ -255,10 +255,14 @@ export async function searchNodes(query: string): Promise<CurriculumNode[]> {
 }
 
 /**
- * Delete a node and its dependencies
+ * Delete a node, its associated flashcards, and its dependencies.
+ * Cards use ON DELETE SET NULL, so we explicitly remove them to avoid orphans.
  */
 export async function deleteNode(nodeId: string): Promise<void> {
   const db = getDatabase();
+  // Delete associated flashcards first (schema is ON DELETE SET NULL)
+  await db.execute(`DELETE FROM cards WHERE node_id = ?`, [nodeId]);
+  // Delete the node (cascades to user_progress and node_dependencies)
   await db.execute(`DELETE FROM curriculum_nodes WHERE node_id = ?`, [nodeId]);
 }
 

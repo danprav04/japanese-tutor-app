@@ -1,9 +1,9 @@
-import { View, Text, StyleSheet, SectionList, TextInput, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, SectionList, TextInput, TouchableOpacity, Dimensions, Alert } from 'react-native';
 import { useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useAppStore } from '../../src/store/app-store';
-import { getNodesWithProgress, type NodeWithProgress } from '../../src/services/curriculum-service';
+import { getNodesWithProgress, deleteNode, type NodeWithProgress } from '../../src/services/curriculum-service';
 
 interface Section {
   title: string;
@@ -25,7 +25,7 @@ function getMasteryLabel(score: number): string {
   return '⬜ Not started';
 }
 
-function CurriculumItem({ item }: { item: NodeWithProgress }) {
+function CurriculumItem({ item, onDelete }: { item: NodeWithProgress; onDelete: (nodeId: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const content = item.contentPayload as Record<string, string> | null;
 
@@ -98,6 +98,12 @@ function CurriculumItem({ item }: { item: NodeWithProgress }) {
           <Text style={styles.detailMeta}>
             {item.attempts} attempts · N{item.jlptLevel}
           </Text>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => onDelete(item.nodeId)}
+          >
+            <Text style={styles.deleteButtonText}>🗑️ Remove</Text>
+          </TouchableOpacity>
         </View>
       )}
     </TouchableOpacity>
@@ -150,6 +156,28 @@ export default function CurriculumScreen() {
     }, [loadData]),
   );
 
+  const handleDeleteNode = useCallback((nodeId: string) => {
+    Alert.alert(
+      'Remove Item',
+      'This will permanently delete this curriculum item, its flashcards, and progress. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteNode(nodeId);
+              loadData();
+            } catch (err) {
+              console.error('Failed to delete node:', err);
+            }
+          },
+        },
+      ]
+    );
+  }, [loadData]);
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       {/* Search bar */}
@@ -173,7 +201,7 @@ export default function CurriculumScreen() {
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.nodeId}
-        renderItem={({ item }) => <CurriculumItem item={item} />}
+        renderItem={({ item }) => <CurriculumItem item={item} onDelete={handleDeleteNode} />}
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -351,5 +379,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     paddingVertical: 16,
+  },
+  deleteButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#3f1a1a',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#7f1d1d',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

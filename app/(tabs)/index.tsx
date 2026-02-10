@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   View,
   Text,
@@ -10,9 +9,13 @@ import {
   Modal,
   FlatList,
   Alert,
+  KeyboardAvoidingView,
+  Dimensions,
 } from 'react-native';
-import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
+import Markdown from 'react-native-markdown-display';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useAppStore } from '../../src/store/app-store';
 import { sendMessage, loadConversationHistory, createNewThread, initTutor } from '../../src/services/tutor-agent';
 import { listThreads, deleteThread, type ThreadSummary } from '../../src/db/checkpointer';
@@ -23,12 +26,7 @@ const SENSEI_USER = {
   avatar: '🎓',
 };
 
-const WELCOME_MSG: IMessage = {
-  _id: 'welcome',
-  text: 'こんにちは！I\'m your Japanese tutor. Let\'s start learning! 🎌\n\nYou can:\n• Ask me to teach you new vocabulary\n• Practice grammar with exercises\n• Have conversations in Japanese\n• Upload learning materials in Settings\n\n⚠️ Add a Gemini API key in Settings to enable AI responses.',
-  createdAt: new Date(),
-  user: SENSEI_USER,
-};
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 export default function ChatScreen() {
   const { apiKeys, currentModel, isGeminiReady, currentThreadId, setCurrentThreadId } = useAppStore();
@@ -37,13 +35,12 @@ export default function ChatScreen() {
   const [showHistory, setShowHistory] = useState(false);
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const initialized = useRef(false);
+  const tabBarHeight = useBottomTabBarHeight();
 
   // Initialize on mount
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
-
-    setMessages([WELCOME_MSG]);
 
     if (currentThreadId && currentThreadId !== 'default') {
       loadThread(currentThreadId);
@@ -67,24 +64,20 @@ export default function ChatScreen() {
           createdAt: new Date(msg.timestamp),
           user: msg.role === 'user' ? { _id: 1 } : SENSEI_USER,
         }));
-        setMessages([WELCOME_MSG, ...historicalMessages.reverse()]);
+        setMessages(historicalMessages.reverse());
+      } else {
+        setMessages([]);
       }
     } catch {
       // DB not initialized yet — that's fine on first load
+      setMessages([]);
     }
   };
 
   const handleNewChat = useCallback(() => {
     const newId = createNewThread();
     setCurrentThreadId(newId);
-    setMessages([
-      {
-        _id: `welcome-${Date.now()}`,
-        text: '✨ New conversation started! What would you like to learn today?',
-        createdAt: new Date(),
-        user: SENSEI_USER,
-      },
-    ]);
+    setMessages([]);
   }, [setCurrentThreadId]);
 
   const handleOpenHistory = useCallback(async () => {
@@ -101,7 +94,7 @@ export default function ChatScreen() {
     async (threadId: string) => {
       setShowHistory(false);
       setCurrentThreadId(threadId);
-      setMessages([WELCOME_MSG]);
+      setMessages([]);
       await loadThread(threadId);
     },
     [setCurrentThreadId],
@@ -215,11 +208,11 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Header buttons */}
       <View style={styles.headerBar}>
         <TouchableOpacity style={styles.headerBtn} onPress={handleOpenHistory}>
-          <Text style={styles.headerBtnText}>📋</Text>
+          <Text style={styles.headerBtnText}>📋 History</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerBtn} onPress={handleNewChat}>
           <Text style={styles.headerBtnText}>✏️ New</Text>
@@ -227,10 +220,17 @@ export default function ChatScreen() {
       </View>
 
       <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 113}
+        style={styles.chatContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        enabled
+        keyboardVerticalOffset={Platform.OS === 'ios' ? tabBarHeight : 0}
       >
+        {messages.length === 0 && (
+          <View style={styles.startContainer}>
+            <Text style={styles.startText}>How can I help you learn Japanese today?</Text>
+            <Text style={styles.startSubText}>Try asking about grammar, vocab, or just say hello!</Text>
+          </View>
+        )}
         <GiftedChat
           messages={messages}
           onSend={(msgs) => onSend(msgs)}
@@ -254,6 +254,27 @@ export default function ChatScreen() {
               }}
             />
           )}
+          renderMessageText={(props) => {
+            const { currentMessage } = props;
+            if (!currentMessage?.text) return null;
+            return (
+              <View style={{ paddingHorizontal: 10, paddingVertical: 5 }}>
+                <Markdown
+                  style={markdownStyles}
+                  rules={{
+                    // Disable default paragraph margin to fit better in bubble
+                    paragraph: (node: any, children: any, parent: any, styles: any) => (
+                      <Text key={node.key} style={styles.paragraph}>
+                        {children}
+                      </Text>
+                    ),
+                  }}
+                >
+                  {currentMessage.text}
+                </Markdown>
+              </View>
+            );
+          }}
           renderInputToolbar={(props) => (
             <InputToolbar
               {...props}
@@ -289,7 +310,8 @@ export default function ChatScreen() {
               </View>
             ) : null
           )}
-          bottomOffset={Platform.OS === 'ios' ? 0 : 0}
+          bottomOffset={tabBarHeight}
+          keyboardShouldPersistTaps="never"
         />
       </KeyboardAvoidingView>
 
@@ -351,10 +373,127 @@ export default function ChatScreen() {
   );
 }
 
+const markdownStyles = StyleSheet.create({
+  body: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    // Constrain width to prevent horizontal scroll/cut-off in bubble
+    maxWidth: SCREEN_WIDTH * 0.7, 
+  },
+  heading1: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginVertical: 10,
+  },
+  heading2: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginVertical: 8,
+  },
+  heading3: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginVertical: 6,
+  },
+  paragraph: {
+    marginVertical: 4,
+    flexWrap: 'wrap',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    width: '100%',
+  },
+  link: {
+    color: '#a5b4fc',
+    textDecorationLine: 'underline',
+  },
+  list_item: {
+    marginVertical: 4,
+  },
+  bullet_list: {
+    marginVertical: 4,
+  },
+  ordered_list: {
+    marginVertical: 4,
+  },
+  code_inline: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  fence: {
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 8,
+    padding: 10,
+    marginVertical: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  blockquote: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderLeftWidth: 4,
+    borderLeftColor: '#a5b4fc',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginVertical: 5,
+  },
+  table: {
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 4,
+    marginVertical: 5,
+  },
+  tr: {
+    borderBottomWidth: 1,
+    borderColor: '#333',
+    flexDirection: 'row',
+  },
+  th: {
+    flex: 1,
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    fontWeight: 'bold',
+  },
+  td: {
+    flex: 1,
+    padding: 8,
+  },
+});
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0a0a0a',
+  },
+  chatContainer: {
+    flex: 1,
+  },
+  startContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: -1,
+    paddingHorizontal: 40,
+  },
+  startText: {
+    color: 'rgba(255, 255, 255, 0.3)',
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  startSubText: {
+    color: 'rgba(255, 255, 255, 0.2)',
+    fontSize: 16,
+    textAlign: 'center',
   },
   headerBar: {
     flexDirection: 'row',
@@ -382,15 +521,20 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   inputPrimary: {
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    paddingVertical: 5,
   },
   composer: {
     backgroundColor: '#2a2a2a',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingTop: 10,
+    paddingBottom: 10,
     marginLeft: 10,
+    marginRight: 10,
     color: '#fff',
+    fontSize: 16,
+    lineHeight: 20,
   },
   sendContainer: {
     justifyContent: 'center',

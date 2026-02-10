@@ -5,6 +5,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useFocusEffect } from 'expo-router';
 import { useAppStore, type ModelType } from '../../src/store/app-store';
 import { processDocument, getUploadedDocuments } from '../../src/services/document-service';
+import { resetProgress } from '../../src/services/progress-service';
 
 export default function SettingsScreen() {
   const {
@@ -100,6 +101,29 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error('Document picker error:', error);
     }
+  };
+
+  const handleResetProgress = () => {
+    Alert.alert(
+      '⚠️ Reset Progress',
+      'Are you sure? This will delete all your mastery scores and learning history. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset Everything',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await resetProgress();
+              Alert.alert('Reset Complete', 'Your progress has been reset to zero.');
+            } catch (error) {
+              console.error('Failed to reset progress:', error);
+              Alert.alert('Error', 'Failed to reset progress. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleDonation = () => {
@@ -202,22 +226,15 @@ export default function SettingsScreen() {
             )}
           </TouchableOpacity>
 
-          {uploadedDocs.length > 0 && (
-            <View style={styles.docList}>
-              {uploadedDocs.map((doc) => (
-                <View key={doc.documentId} style={styles.docItem}>
-                  <Text style={styles.docName}>{doc.filename}</Text>
-                  <Text style={[
-                    styles.docStatus,
-                    doc.processed === 1 && styles.docStatusDone,
-                    doc.processed === -1 && styles.docStatusFailed,
-                  ]}>
-                    {doc.processed === 1 ? '✅' : doc.processed === -1 ? '❌' : '⏳'}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
+          {/* Document list hidden — managed via Curriculum tab */}
+        </View>
+
+        {/* Danger Zone */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🚫 Danger Zone</Text>
+          <TouchableOpacity style={styles.dangerButton} onPress={handleResetProgress}>
+            <Text style={styles.dangerButtonText}>Reset Progress</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Support */}
@@ -396,5 +413,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginTop: 4,
+  },
+  dangerButton: {
+    backgroundColor: '#3f1a1a',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#7f1d1d',
+  },
+  dangerButtonText: {
+    color: '#ef4444',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

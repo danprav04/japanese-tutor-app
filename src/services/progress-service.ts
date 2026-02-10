@@ -297,3 +297,23 @@ export async function updateStudyStreak(): Promise<number> {
 
   return newStreak;
 }
+
+/**
+ * Reset all progress data (Danger Zone)
+ */
+export async function resetProgress(): Promise<void> {
+  const db = getDatabase();
+  
+  // 1. Clear user nodes progress
+  await db.execute(`DELETE FROM user_progress`);
+
+  // 2. Reset study stats
+  await db.execute(
+    `INSERT OR REPLACE INTO app_settings (key, value) VALUES ('study_streak', '0')`
+  );
+  await db.execute(
+    `DELETE FROM app_settings WHERE key = 'last_study_date'`
+  );
+  
+  // Note: We do NOT delete API keys or onboarding status
+}
