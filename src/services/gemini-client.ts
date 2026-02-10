@@ -6,16 +6,16 @@
 import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from '@google/generative-ai';
 
 export type ModelType = 
-  | 'gemini-3-flash' 
-  | 'gemini-3-pro' 
+  | 'gemini-3-flash-preview' 
+  | 'gemini-3-pro-preview' 
   | 'gemini-2.5-flash' 
   | 'gemma-3-27b-it';
 
-export const MODEL_RATES: Record<ModelType, { rpm: number; tpm: number; rpd: number }> = {
-  'gemini-3-flash': { rpm: 30, tpm: 1_000_000, rpd: 1_500 },
-  'gemini-3-pro': { rpm: 5, tpm: 250_000, rpd: 50 },
-  'gemini-2.5-flash': { rpm: 15, tpm: 1_000_000, rpd: 1_500 },
-  'gemma-3-27b-it': { rpm: 30, tpm: 15_000, rpd: 14_400 },
+export const MODEL_RATES: Record<ModelType, { rpm: number; tpm: number; rpd: number; maxChunkSize: number }> = {
+  'gemini-3-flash-preview': { rpm: 30, tpm: 1_000_000, rpd: 1_500, maxChunkSize: 30_000 },
+  'gemini-3-pro-preview': { rpm: 5, tpm: 250_000, rpd: 50, maxChunkSize: 10_000 },
+  'gemini-2.5-flash': { rpm: 15, tpm: 1_000_000, rpd: 1_500, maxChunkSize: 30_000 },
+  'gemma-3-27b-it': { rpm: 30, tpm: 15_000, rpd: 14_400, maxChunkSize: 800 },
 };
 
 interface RateLimitError extends Error {

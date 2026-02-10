@@ -10,7 +10,7 @@
 
 import { File } from 'expo-file-system/next';
 import { getDatabase } from '../db/database';
-import { getGeminiClient } from './gemini-client';
+import { getGeminiClient, MODEL_RATES } from './gemini-client';
 import { addNode } from './curriculum-service';
 import { createFlashcard } from './card-service';
 import { initializeProgress } from './progress-service';
@@ -37,21 +37,29 @@ interface ExtractionResult {
 
 // ─── Extraction Prompt ───────────────────────────────────────
 
-const EXTRACTION_SCHEMA = `{
-  "items": [
-    {
-      "title": "string (the Japanese word/kanji/pattern)",
-      "type": "vocab | grammar | kanji",
-      "jlptLevel": "number 1-5 (estimate)",
-      "reading": "string (hiragana reading, if applicable)",
-      "meaning": "string (English meaning)",
-      "example": "string (example sentence in Japanese)",
-      "exampleTranslation": "string (English translation of example)",
-      "onyomi": "string (on'yomi reading, kanji only)",
-      "kunyomi": "string (kun'yomi reading, kanji only)"
-    }
-  ]
-}`;
+const EXTRACTION_SCHEMA = JSON.stringify({
+  type: 'object',
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'The word, kanji, or grammar point' },
+          type: { type: 'string', enum: ['vocab', 'grammar', 'kanji'] },
+          jlptLevel: { type: 'integer', description: 'JLPT level (5-1)' },
+          reading: { type: 'string', description: 'Kana reading (for vocab/kanji)' },
+          meaning: { type: 'string', description: 'English meaning' },
+          example: { type: 'string', description: 'Japanese example sentence' },
+          exampleTranslation: { type: 'string', description: 'English translation of example' },
+          onyomi: { type: 'string', description: 'Onyomi readings (kanji only)' },
+          kunyomi: { type: 'string', description: 'Kunyomi readings (kanji only)' },
+        },
+        required: ['title', 'type', 'jlptLevel', 'meaning'],
+      },
+    },
+  },
+});
 
 const CHUNK_SIZE = 2000; // characters per Gemini extraction call
 
@@ -102,6 +110,9 @@ export async function processDocument(
   // Ensure we use the user's selected model
   const currentModel = useAppStore.getState().currentModel;
   client.setModel(currentModel);
+  // Get model specific configuration
+  const modelConfig = MODEL_RATES[currentModel];
+  const chunkSize = modelConfig ? modelConfig.maxChunkSize : 2000;
 
   const db = getDatabase();
   
@@ -140,8 +151,8 @@ export async function processDocument(
   );
 
   // 4. Split into chunks and extract from each
-  // We use 2000 chars as a safe baseline. The splitting logic is now robust enough to handle this.
-  const textChunks = splitForExtraction(textContent, 2000);
+  // We use dynamic chunk size based on the model's capabilities
+  const textChunks = splitForExtraction(textContent, chunkSize);
   const allItems: ExtractedItem[] = [];
 
   try {
