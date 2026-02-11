@@ -209,3 +209,12 @@ export async function createFlashcard(
   };
 }
 
+/**
+ * Delete a flashcard and its review history.
+ */
+export async function deleteFlashcard(cardId: string): Promise<void> {
+  const db = getDatabase();
+  // review_logs have ON DELETE CASCADE, but be explicit
+  await db.execute(`DELETE FROM review_logs WHERE card_id = ?`, [cardId]);
+  await db.execute(`DELETE FROM cards WHERE card_id = ?`, [cardId]);
+}

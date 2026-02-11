@@ -298,6 +298,51 @@ export async function updateStudyStreak(): Promise<number> {
   return newStreak;
 }
 
+// ─── Daily Study Goals ───────────────────────────────────────
+
+/**
+ * Get the user's daily study goal (default: 10 cards)
+ */
+export async function getDailyStudyGoal(): Promise<number> {
+  const db = getDatabase();
+  const result = await db.execute(
+    `SELECT value FROM app_settings WHERE key = 'daily_goal'`
+  );
+  if (result.rows?.[0]) {
+    return parseInt((result.rows[0] as any).value as string, 10) || 10;
+  }
+  return 10;
+}
+
+/**
+ * Set the user's daily study goal
+ */
+export async function setDailyStudyGoal(target: number): Promise<void> {
+  const db = getDatabase();
+  await db.execute(
+    `INSERT OR REPLACE INTO app_settings (key, value) VALUES ('daily_goal', ?)`,
+    [String(target)]
+  );
+}
+
+/**
+ * Get today's study progress (number of reviews done today)
+ */
+export async function getDailyStudyProgress(): Promise<{ done: number; goal: number }> {
+  const db = getDatabase();
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  const result = await db.execute(
+    `SELECT COUNT(*) as count FROM review_logs WHERE review_time >= ?`,
+    [today]
+  );
+
+  const done = result.rows?.[0] ? ((result.rows[0] as any).count as number) : 0;
+  const goal = await getDailyStudyGoal();
+
+  return { done, goal };
+}
+
 /**
  * Reset all progress data (Danger Zone)
  */

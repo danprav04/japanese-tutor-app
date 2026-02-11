@@ -143,6 +143,7 @@ export async function clearAllCheckpoints(): Promise<void> {
 
 export interface ThreadSummary {
   threadId: string;
+  title: string | null;
   lastMessagePreview: string;
   createdAt: string;
   messageCount: number;
@@ -167,6 +168,7 @@ export async function listThreads(): Promise<ThreadSummary[]> {
   return (result.rows as any[]).map((row) => {
     let preview = 'New conversation';
     let messageCount = 0;
+    let title: string | null = null;
     try {
       const data = JSON.parse(row.checkpoint_data as string);
       if (Array.isArray(data.messages)) {
@@ -179,13 +181,38 @@ export async function listThreads(): Promise<ThreadSummary[]> {
         }
       }
     } catch {}
+    try {
+      if (row.metadata) {
+        const meta = JSON.parse(row.metadata as string);
+        title = meta.thread_title || null;
+      }
+    } catch {}
     return {
       threadId: row.thread_id as string,
+      title,
       lastMessagePreview: preview,
       createdAt: row.created_at as string,
       messageCount,
     };
   });
+}
+
+/**
+ * Set a title for a thread (stores in metadata of the latest checkpoint)
+ */
+export async function setThreadTitle(threadId: string, title: string): Promise<void> {
+  const db = getDatabase();
+  // Get the latest checkpoint for this thread
+  const latest = await getLatestCheckpoint(threadId);
+  if (!latest) return;
+
+  const metadata = latest.metadata || {};
+  metadata.thread_title = title;
+
+  await db.execute(
+    `UPDATE checkpoints SET metadata = ? WHERE thread_id = ? AND checkpoint_id = ?`,
+    [JSON.stringify(metadata), threadId, latest.checkpointId]
+  );
 }
 
 /**

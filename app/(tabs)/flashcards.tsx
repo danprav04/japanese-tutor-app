@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator, Alert } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
@@ -9,7 +9,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useAppStore } from '../../src/store/app-store';
-import { getDueCards, reviewCardAndPersist, getCardSchedulingPreview } from '../../src/services/card-service';
+import { getDueCards, reviewCardAndPersist, getCardSchedulingPreview, deleteFlashcard } from '../../src/services/card-service';
 import { recordAnswer, updateStudyStreak } from '../../src/services/progress-service';
 import { type ReviewRating, Rating, type CardData } from '../../src/algorithms/fsrs';
 
@@ -150,6 +150,38 @@ export default function FlashcardsScreen() {
     }
   };
 
+  const handleDelete = () => {
+    const card = cards[currentIndex];
+    Alert.alert(
+      'Delete Flashcard',
+      `Delete "${card.front}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteFlashcard(card.card_id);
+              const newCards = cards.filter((_, i) => i !== currentIndex);
+              setCards(newCards);
+              if (newCards.length === 0) {
+                setSessionDone(true);
+              } else if (currentIndex >= newCards.length) {
+                setCurrentIndex(newCards.length - 1);
+              }
+              // Reset flip state
+              setIsFlipped(false);
+              flipProgress.value = withTiming(0, { duration: 200 });
+            } catch (err) {
+              console.error('Failed to delete card:', err);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent]}>
@@ -258,6 +290,9 @@ export default function FlashcardsScreen() {
         {/* Back face */}
         <Animated.View style={[styles.card, styles.cardFace, styles.cardFlipped, backStyle]}>
           <Text style={styles.cardType}>{currentCard.card_type.toUpperCase()}</Text>
+          <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
+            <Text style={styles.deleteBtnText}>🗑️</Text>
+          </TouchableOpacity>
           <Text style={styles.cardTextBack}>{currentCard.back}</Text>
           <Text style={styles.tapHint}>Rate your recall below</Text>
         </Animated.View>
@@ -411,6 +446,17 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
     fontSize: 11,
     marginTop: 2,
+  },
+  deleteBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+  },
+  deleteBtnText: {
+    fontSize: 16,
   },
   // Empty state
   emptyState: {

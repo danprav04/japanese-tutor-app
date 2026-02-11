@@ -20,6 +20,7 @@ import { useAppStore } from '../../src/store/app-store';
 import { sendMessage, loadConversationHistory, createNewThread, initTutor, getThreadDocumentState, clearThreadDocumentState, type ParsedExercise } from '../../src/services/tutor-agent';
 import { listThreads, deleteThread, type ThreadSummary } from '../../src/db/checkpointer';
 import { type DocumentLearningState } from '../../src/services/document-learning-service';
+import ExerciseCard from '../../src/components/ExerciseCard';
 
 const SENSEI_USER = {
   _id: 2,
@@ -198,24 +199,15 @@ export default function ChatScreen() {
         }, cardsCreated > 0 ? 1000 : 500);
       }
 
-      // Display exercise cards inline
+      // Display exercise cards inline as interactive components
       if (exercises.length > 0) {
-        const exerciseTexts = exercises.map((ex: ParsedExercise) => {
-          const typeEmoji = ex.type === 'fill-blank' ? '✏️' : ex.type === 'translate' ? '🔄' : '🔘';
-          let text = `${typeEmoji} **${ex.type === 'fill-blank' ? 'Fill in the Blank' : ex.type === 'translate' ? 'Translate' : 'Choose the Answer'}**\n\n`;
-          text += `${ex.question}\n`;
-          if (ex.hint) text += `\n💡 Hint: *${ex.hint}*`;
-          if (ex.options && ex.options.length > 0) {
-            text += '\n' + ex.options.map((o, i) => `${['A', 'B', 'C', 'D'][i]}. ${o}`).join('\n');
-          }
-          return text;
-        }).join('\n\n---\n\n');
-
         const exerciseMsg: IMessage = {
           _id: `exercise-${Date.now()}`,
-          text: exerciseTexts,
+          text: '__EXERCISES__',
           createdAt: new Date(),
           user: SENSEI_USER,
+          // @ts-ignore — custom field to pass exercise data
+          exercises: exercises,
         };
         setTimeout(() => {
           setMessages((prev) => GiftedChat.append(prev, [exerciseMsg]));
@@ -311,6 +303,32 @@ export default function ChatScreen() {
           renderMessageText={(props) => {
             const { currentMessage } = props;
             if (!currentMessage?.text) return null;
+
+            // Render interactive exercises instead of markdown
+            if (currentMessage.text === '__EXERCISES__' && (currentMessage as any).exercises) {
+              const exercises = (currentMessage as any).exercises as ParsedExercise[];
+              return (
+                <View style={{ paddingHorizontal: 6, paddingVertical: 5 }}>
+                  {exercises.map((ex, i) => (
+                    <ExerciseCard
+                      key={`ex-${i}`}
+                      exercise={ex}
+                      onAnswer={(answer) => {
+                        // Send the answer as a user message
+                        const answerMsg: IMessage[] = [{
+                          _id: `answer-${Date.now()}-${i}`,
+                          text: answer,
+                          createdAt: new Date(),
+                          user: { _id: 1 },
+                        }];
+                        onSend(answerMsg);
+                      }}
+                    />
+                  ))}
+                </View>
+              );
+            }
+
             return (
               <View style={{ paddingHorizontal: 10, paddingVertical: 5 }}>
                 <Markdown
@@ -404,7 +422,7 @@ export default function ChatScreen() {
                   >
                     <View style={styles.threadInfo}>
                       <Text style={styles.threadPreview} numberOfLines={1}>
-                        {item.lastMessagePreview}
+                        {item.title || item.lastMessagePreview}
                       </Text>
                       <Text style={styles.threadMeta}>
                         {item.messageCount} messages · {formatDate(item.createdAt)}

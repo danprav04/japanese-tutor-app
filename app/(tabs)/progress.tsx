@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import Svg, { Circle, Rect, Line, Text as SvgText } from 'react-native-svg';
 
-import { getOverallMastery, getStudyStreak } from '../../src/services/progress-service';
+import { getOverallMastery, getStudyStreak, getDailyStudyProgress, setDailyStudyGoal } from '../../src/services/progress-service';
 import { getCardStats } from '../../src/services/card-service';
 import {
   getStudySessionSummary,
@@ -154,6 +154,54 @@ function StatCard({ value, label, emoji }: { value: string | number; label: stri
   );
 }
 
+const GOAL_OPTIONS = [5, 10, 15, 20, 25];
+
+function DailyGoalCard({ done, goal, onGoalChange }: { done: number; goal: number; onGoalChange: (n: number) => void }) {
+  const progress = goal > 0 ? Math.min(done / goal, 1) : 0;
+  const completed = done >= goal;
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionTitle}>🎯 Daily Goal</Text>
+        <Text style={[styles.streakBadge, completed && { color: '#22c55e' }]}>
+          {completed ? '✓ Complete!' : `${done}/${goal}`}
+        </Text>
+      </View>
+
+      {/* Progress bar */}
+      <View style={styles.dailyGoalBarBg}>
+        <View
+          style={[
+            styles.dailyGoalBarFill,
+            { width: `${Math.round(progress * 100)}%` },
+            completed && { backgroundColor: '#22c55e' },
+          ]}
+        />
+      </View>
+      <Text style={styles.dailyGoalSubtext}>
+        {completed
+          ? `Great job! You reviewed ${done} cards today!`
+          : `${goal - done} more review${goal - done !== 1 ? 's' : ''} to hit your goal`}
+      </Text>
+
+      {/* Goal adjustment */}
+      <View style={styles.goalOptionsRow}>
+        {GOAL_OPTIONS.map((n) => (
+          <TouchableOpacity
+            key={n}
+            style={[styles.goalOption, n === goal && styles.goalOptionActive]}
+            onPress={() => onGoalChange(n)}
+          >
+            <Text style={[styles.goalOptionText, n === goal && styles.goalOptionTextActive]}>{n}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <Text style={styles.goalOptionsHint}>cards per day</Text>
+    </View>
+  );
+}
+
 function RecentItem({ item }: { item: MasteryChange }) {
   const pct = Math.round(item.masteryScore * 100);
   const color = pct >= 95 ? '#22c55e' : pct >= 50 ? '#6366f1' : pct >= 25 ? '#f59e0b' : '#ef4444';
@@ -182,6 +230,7 @@ export default function ProgressScreen() {
   const [weekDays, setWeekDays] = useState<WeekDay[]>([]);
   const [typeBreakdowns, setTypeBreakdowns] = useState<TypeBreakdown[]>([]);
   const [recentChanges, setRecentChanges] = useState<MasteryChange[]>([]);
+  const [dailyGoal, setDailyGoal] = useState({ done: 0, goal: 10 });
 
   useFocusEffect(
     useCallback(() => {
@@ -192,7 +241,7 @@ export default function ProgressScreen() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [mastery, streakData, cards, session, week, types, recent] = await Promise.all([
+      const [mastery, streakData, cards, session, week, types, recent, dailyProgress] = await Promise.all([
         getOverallMastery(),
         getStudyStreak(),
         getCardStats(),
@@ -200,6 +249,7 @@ export default function ProgressScreen() {
         getWeeklyStreak(),
         getTypeBreakdown(),
         getRecentMasteryChanges(5),
+        getDailyStudyProgress(),
       ]);
       setOverallMastery(mastery);
       setStreak(streakData);
@@ -208,6 +258,7 @@ export default function ProgressScreen() {
       setWeekDays(week);
       setTypeBreakdowns(types);
       setRecentChanges(recent);
+      setDailyGoal(dailyProgress);
     } catch (e) {
       console.error('Failed to load progress data:', e);
     } finally {
@@ -237,6 +288,16 @@ export default function ProgressScreen() {
             <Text style={styles.masterySubtitle}>items mastered</Text>
           </View>
         </View>
+
+        {/* ── Daily Goal ── */}
+        <DailyGoalCard
+          done={dailyGoal.done}
+          goal={dailyGoal.goal}
+          onGoalChange={async (n) => {
+            await setDailyStudyGoal(n);
+            setDailyGoal((prev) => ({ ...prev, goal: n }));
+          }}
+        />
 
         {/* ── Weekly Streak ── */}
         <View style={styles.section}>
@@ -533,9 +594,56 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   typeAvg: {
-    color: '#666',
+    color: '#666' as const,
+  },
+  // ── Daily goal
+  dailyGoalBarBg: {
+    height: 10,
+    backgroundColor: '#1e1e2e',
+    borderRadius: 5,
+    overflow: 'hidden' as const,
+    marginBottom: 8,
+  },
+  dailyGoalBarFill: {
+    height: '100%' as const,
+    backgroundColor: '#6366f1',
+    borderRadius: 5,
+  },
+  dailyGoalSubtext: {
+    color: '#888',
+    fontSize: 12,
+    marginBottom: 14,
+  },
+  goalOptionsRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+  },
+  goalOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#1e1e2e',
+    borderWidth: 1,
+    borderColor: '#2a2a3a',
+  },
+  goalOptionActive: {
+    backgroundColor: '#6366f130',
+    borderColor: '#6366f1',
+  },
+  goalOptionText: {
+    color: '#888',
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  goalOptionTextActive: {
+    color: '#a5b4fc',
+  },
+  goalOptionsHint: {
+    color: '#555',
     fontSize: 11,
-    marginTop: 4,
+    textAlign: 'center' as const,
+    marginTop: 6,
   },
   // ── Recent activity
   recentRow: {

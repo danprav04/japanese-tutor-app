@@ -7,7 +7,7 @@
  */
 
 import { initGeminiClient, getGeminiClient, type ModelType } from './gemini-client';
-import { saveCheckpoint, getLatestCheckpoint, listCheckpoints } from '../db/checkpointer';
+import { saveCheckpoint, getLatestCheckpoint, listCheckpoints, setThreadTitle } from '../db/checkpointer';
 import { createFlashcard } from './card-service';
 import { buildCurriculumContext, getReviewContext } from './curriculum-context';
 import { recordAnswer } from './progress-service';
@@ -299,6 +299,47 @@ function parseExercises(response: string): { cleanText: string; exercises: Parse
 
 // ─── Public API ──────────────────────────────────────────────
 
+// ─── Conversation Summarization ──────────────────────────────
+
+const SUMMARIZATION_THRESHOLD = 20;
+const KEEP_RECENT = 10;
+
+/**
+ * Summarize older messages when conversation grows too long.
+ * Replaces messages[0...-KEEP_RECENT] with a compact summary.
+ */
+async function summarizeIfNeeded(messages: ConversationMessage[]): Promise<ConversationMessage[]> {
+  if (messages.length <= SUMMARIZATION_THRESHOLD) return messages;
+
+  // Check if already summarized (first message is a summary)
+  const firstMsg = messages[0];
+  const oldMessages = messages.slice(0, messages.length - KEEP_RECENT);
+  const recentMessages = messages.slice(messages.length - KEEP_RECENT);
+
+  // Build text to summarize
+  const textToSummarize = oldMessages
+    .map((m) => `${m.role === 'user' ? 'Student' : 'Sensei'}: ${m.content}`)
+    .join('\n');
+
+  try {
+    const client = getGeminiClient();
+    const summaryPrompt = `Summarize this Japanese tutoring conversation in 3-5 bullet points. Focus on: what was taught, what the student struggled with, and what was mastered. Be concise.\n\n${textToSummarize}`;
+    const summary = await client.generate(summaryPrompt);
+
+    const summaryMsg: ConversationMessage = {
+      role: 'assistant',
+      content: `[Previous conversation summary]\n${summary}`,
+      timestamp: new Date().toISOString(),
+    };
+
+    return [summaryMsg, ...recentMessages];
+  } catch (err) {
+    console.warn('Failed to summarize conversation:', err);
+    // Fallback: just keep recent messages
+    return recentMessages;
+  }
+}
+
 /**
  * Initialize the tutor with API keys and model selection.
  */
@@ -387,6 +428,10 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   messages.push(userMsg);
 
   // Build conversation context for the model
+  // Summarize if conversation is getting too long
+  messages = await summarizeIfNeeded(messages);
+  conversationCache.set(threadId, messages);
+
   const conversationContext = messages
     .slice(-20)
     .map((m) => `${m.role === 'user' ? 'Student' : 'Sensei'}: ${m.content}`)
@@ -496,6 +541,20 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     const checkpointId = uuidv4();
     const state: ConversationState = { messages };
     await saveCheckpoint(threadId, checkpointId, state as unknown as Record<string, unknown>);
+
+    // Generate title for new conversations (first exchange)
+    if (messages.length === 2) {
+      try {
+        const titlePrompt = `Generate a very short title (3-5 words, no quotes) for this tutoring conversation. First message: "${messages[0].content.slice(0, 100)}"\nTitle:`;
+        const title = await client.generate(titlePrompt);
+        const cleanTitle = title.replace(/["']/g, '').trim().slice(0, 50);
+        if (cleanTitle) {
+          await setThreadTitle(threadId, cleanTitle);
+        }
+      } catch {
+        // Non-critical
+      }
+    }
   } catch (err) {
     console.warn('Failed to save conversation checkpoint:', err);
   }
