@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
 import Markdown from 'react-native-markdown-display';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useAppStore } from '../../src/store/app-store';
 import { sendMessage, loadConversationHistory, createNewThread, initTutor, getThreadDocumentState, clearThreadDocumentState, type ParsedExercise } from '../../src/services/tutor-agent';
 import { listThreads, deleteThread, type ThreadSummary } from '../../src/db/checkpointer';
@@ -39,6 +40,7 @@ export default function ChatScreen() {
   const [docLearningMode, setDocLearningMode] = useState<DocumentLearningState | null>(null);
   const initialized = useRef(false);
   const tabBarHeight = useBottomTabBarHeight();
+  const headerHeight = useHeaderHeight();
 
   // Initialize on mount
   useEffect(() => {
@@ -236,7 +238,7 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       {/* Header buttons */}
       <View style={styles.headerBar}>
         <TouchableOpacity style={styles.headerBtn} onPress={handleOpenHistory}>
@@ -249,9 +251,9 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView
         style={styles.chatContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
         enabled
-        keyboardVerticalOffset={Platform.OS === 'ios' ? tabBarHeight : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? tabBarHeight : headerHeight}
       >
         {/* Document learning mode banner */}
         {docLearningMode && (
