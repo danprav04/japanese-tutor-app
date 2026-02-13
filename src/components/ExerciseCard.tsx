@@ -77,11 +77,13 @@ export default function ExerciseCard({ exercise, onAnswer }: ExerciseCardProps) 
 
             if (submitted) {
               if (isCorrectOption) {
+                // Strict match = Green
                 optionStyle = { ...styles.option, ...styles.optionCorrect };
                 textStyle = { ...styles.optionText, ...styles.optionTextCorrect };
-              } else if (isSelected && !isCorrectOption) {
-                optionStyle = { ...styles.option, ...styles.optionWrong };
-                textStyle = { ...styles.optionText, ...styles.optionTextWrong };
+              } else if (isSelected) {
+                // Selected but not strict match = Neutral (Blue/Selected)
+                // We do NOT mark it red/wrong, we let AI judge it.
+                optionStyle = { ...styles.option, ...styles.optionSelected };
               }
             } else if (isSelected) {
               optionStyle = { ...styles.option, ...styles.optionSelected };
@@ -100,9 +102,7 @@ export default function ExerciseCard({ exercise, onAnswer }: ExerciseCardProps) 
                 {submitted && isCorrectOption && (
                   <Text style={styles.checkmark}>✓</Text>
                 )}
-                {submitted && isSelected && !isCorrectOption && (
-                  <Text style={styles.crossmark}>✗</Text>
-                )}
+                {/* Removed Crossmark for 'wrong' answers */}
               </TouchableOpacity>
             );
           })}
@@ -116,7 +116,7 @@ export default function ExerciseCard({ exercise, onAnswer }: ExerciseCardProps) 
             style={[
               styles.input,
               submitted && isCorrect && styles.inputCorrect,
-              submitted && isCorrect === false && styles.inputWrong,
+              // submitted && isCorrect === false && styles.inputWrong, // Don't show wrong style
             ]}
             value={inputValue}
             onChangeText={setInputValue}
@@ -139,22 +139,22 @@ export default function ExerciseCard({ exercise, onAnswer }: ExerciseCardProps) 
               <Text style={styles.submitBtnText}>Check</Text>
             </TouchableOpacity>
           ) : (
-            <View style={styles.resultBadge}>
+            <View style={[styles.resultBadge, isCorrect ? styles.resultBadgeCorrect : styles.resultBadgeNeutral]}>
               <Text style={styles.resultText}>
-                {isCorrect ? '✓' : '✗'}
+                {isCorrect ? '✓' : '...'}
               </Text>
             </View>
           )}
         </View>
       )}
 
-      {/* Show correct answer if wrong */}
-      {submitted && isCorrect === false && (
+      {/* Correct answer reveal removed - let AI handle it */}
+      {/* {submitted && isCorrect === false && (
         <View style={styles.correctAnswerBox}>
           <Text style={styles.correctAnswerLabel}>Correct answer:</Text>
           <Text style={styles.correctAnswerText}>{exercise.answer}</Text>
         </View>
-      )}
+      )} */}
     </View>
   );
 }
@@ -289,6 +289,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  resultBadgeCorrect: {
+    // defaults are fine or add specific
+  },
+  resultBadgeNeutral: {
+    opacity: 0.7,
   },
   resultText: {
     fontSize: 22,

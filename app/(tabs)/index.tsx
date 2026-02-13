@@ -13,7 +13,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send } from 'react-native-gifted-chat';
+import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send, SystemMessage } from 'react-native-gifted-chat';
 import Markdown from 'react-native-markdown-display';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -160,6 +160,7 @@ export default function ChatScreen() {
       }
 
       const { text: response, cardsCreated, progressUpdates, exercises } = await sendMessage(threadId, userMessage.text);
+      console.log('📱 ChatScreen received response:', { length: response.length, exercises: exercises.length, cards: cardsCreated });
 
       // Check if document learning mode was activated
       const docState = getThreadDocumentState(threadId);
@@ -364,6 +365,13 @@ export default function ChatScreen() {
                 style: styles.composer,
                 placeholderTextColor: "#666",
               }}
+            />
+          )}
+          renderSystemMessage={(props) => (
+            <SystemMessage
+              {...props}
+              textStyle={{ color: '#E0E7FF', fontSize: 13, fontWeight: '600', textAlign: 'center' }}
+              containerStyle={{ marginBottom: 10, paddingHorizontal: 20 }}
             />
           )}
           renderSend={(props) => (

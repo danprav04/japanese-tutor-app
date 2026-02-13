@@ -164,9 +164,23 @@ export class GeminiClient {
           console.warn('⚠️ Failed to count tokens:', e);
         }
 
+        console.log('🚀 Sending request to Gemini...');
         const result = await model.generateContent(fullPrompt);
+        console.log('✅ Received response from Gemini. Processing...');
         const response = result.response;
-        return response.text();
+        
+        // Log candidate details
+        if (response.candidates && response.candidates.length > 0) {
+          const candidate = response.candidates[0];
+          console.log(`🏁 Finish Reason: ${candidate.finishReason}`);
+          if (candidate.safetyRatings) {
+            console.log('🛡️ Safety Ratings:', JSON.stringify(candidate.safetyRatings));
+          }
+        }
+
+        const text = response.text();
+        console.log(`📜 Response length: ${text.length} chars`);
+        return text;
       } catch (error) {
         if (signal?.aborted) {
             throw new Error('Aborted');

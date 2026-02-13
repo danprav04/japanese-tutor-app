@@ -474,7 +474,9 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   }
 
   // Generate response
+  console.log('🤖 asking gemini...');
   const rawResponse = await client.generate(fullPrompt);
+  console.log('🤖 got raw response');
 
   // Strip hidden thinking blocks (CoT reasoning)
   const { cleanText: afterThinking, thinking } = parseThinkingBlocks(rawResponse);
@@ -491,6 +493,12 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   // Parse embedded exercises
   const { cleanText: afterExercises, exercises } = parseExercises(afterProgress || afterFlashcards || afterThinking || rawResponse);
   const response = afterExercises || afterProgress || afterFlashcards || afterThinking || rawResponse;
+
+  console.log(`✂️ Parsed Response:
+    Original: ${rawResponse.length} chars
+    After Thinking: ${afterThinking?.length ?? 'null'} chars
+    Final Response: ${response.length} chars
+    Final Text: "${response.substring(0, 100)}..."`);
 
   // Auto-create flashcards
   let cardsCreated = 0;
