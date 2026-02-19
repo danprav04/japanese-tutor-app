@@ -112,49 +112,35 @@ export default function ExerciseCard({ exercise, onAnswer }: ExerciseCardProps) 
       {/* Text input for fill-blank and translate */}
       {(exercise.type === 'fill-blank' || exercise.type === 'translate') && (
         <View style={styles.inputContainer}>
-          <TextInput
-            style={[
-              styles.input,
-              submitted && isCorrect && styles.inputCorrect,
-              // submitted && isCorrect === false && styles.inputWrong, // Don't show wrong style
-            ]}
-            value={inputValue}
-            onChangeText={setInputValue}
-            placeholder={
-              exercise.type === 'fill-blank'
-                ? 'Type the missing word...'
-                : 'Type your translation...'
-            }
-            placeholderTextColor="#666"
-            editable={!submitted}
-            onSubmitEditing={() => handleSubmit(inputValue)}
-            returnKeyType="send"
-          />
           {!submitted ? (
-            <TouchableOpacity
-              style={[styles.submitBtn, !inputValue.trim() && styles.submitBtnDisabled]}
-              onPress={() => handleSubmit(inputValue)}
-              disabled={!inputValue.trim()}
-            >
-              <Text style={styles.submitBtnText}>Check</Text>
-            </TouchableOpacity>
+            <>
+              <TextInput
+                style={styles.input}
+                value={inputValue}
+                onChangeText={setInputValue}
+                placeholder="Type the missing word..."
+                placeholderTextColor="#666"
+                editable={!submitted}
+                onSubmitEditing={() => handleSubmit(inputValue)}
+                returnKeyType="send"
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={[styles.submitBtn, !inputValue.trim() && styles.submitBtnDisabled]}
+                onPress={() => handleSubmit(inputValue)}
+                disabled={!inputValue.trim()}
+              >
+                <Text style={styles.submitBtnText}>Check</Text>
+              </TouchableOpacity>
+            </>
           ) : (
-            <View style={[styles.resultBadge, isCorrect ? styles.resultBadgeCorrect : styles.resultBadgeNeutral]}>
-              <Text style={styles.resultText}>
-                {isCorrect ? '✓' : '...'}
-              </Text>
+            <View style={styles.submittedRow}>
+              <Text style={styles.submittedAnswer}>Your answer: {selected}</Text>
+              <Text style={styles.submittedHint}>Sensei is checking... ✨</Text>
             </View>
           )}
         </View>
       )}
-
-      {/* Correct answer reveal removed - let AI handle it */}
-      {/* {submitted && isCorrect === false && (
-        <View style={styles.correctAnswerBox}>
-          <Text style={styles.correctAnswerLabel}>Correct answer:</Text>
-          <Text style={styles.correctAnswerText}>{exercise.answer}</Text>
-        </View>
-      )} */}
     </View>
   );
 }
@@ -246,22 +232,20 @@ const styles = StyleSheet.create({
 
   // Text input
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginTop: 12,
-    gap: 8,
+    gap: 10,
   },
   input: {
-    flex: 1,
     backgroundColor: '#0d0d1a',
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
     color: '#fff',
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#2a2a3a',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    minHeight: 44,
   },
   inputCorrect: {
     borderColor: '#22c55e',
@@ -272,8 +256,8 @@ const styles = StyleSheet.create({
   submitBtn: {
     backgroundColor: '#6366f1',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
   submitBtnDisabled: {
     opacity: 0.4,
@@ -283,42 +267,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  resultBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+  // Submitted state
+  submittedRow: {
+    backgroundColor: '#0d0d1a',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#2a2a4a',
   },
-  resultBadgeCorrect: {
-    // defaults are fine or add specific
-  },
-  resultBadgeNeutral: {
-    opacity: 0.7,
-  },
-  resultText: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
-
-  // Correct answer reveal
-  correctAnswerBox: {
-    marginTop: 10,
-    backgroundColor: '#22c55e10',
-    borderRadius: 10,
-    padding: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: '#22c55e',
-  },
-  correctAnswerLabel: {
-    color: '#22c55e',
-    fontSize: 11,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  correctAnswerText: {
-    color: '#fff',
+  submittedAnswer: {
+    color: '#a5b4fc',
     fontSize: 16,
     fontWeight: '500',
+    marginBottom: 4,
+  },
+  submittedHint: {
+    color: '#666',
+    fontSize: 13,
+    fontStyle: 'italic',
   },
 });

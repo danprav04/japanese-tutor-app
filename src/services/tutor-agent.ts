@@ -75,26 +75,42 @@ Most responses should have ZERO flashcard blocks. When you do create one:
 Valid types: vocab, grammar, kanji.
 
 ## Exercise Generation (Quiz Mode)
-When the student asks to practice, be quizzed, or says "quiz me", generate ONE exercise:
-[EXERCISE]{"type":"fill-blank","question":"私は毎日コーヒーを___ます。","hint":"to drink","answer":"飲み","item":"飲む"}[/EXERCISE]
+When the student asks to practice or says "quiz me", generate ONE exercise ONLY about items the student has already been exposed to (📙 STILL LEARNING or 📗 ALMOST MASTERED in the curriculum). Do NOT quiz on 📕 NOT YET LEARNED items — teach those first. If ALL items are unlearned, tell the student: "Let's learn something first before quizzing! Want to start with [item]?"
+
+Example fill-blank exercise (for particle は):
+[EXERCISE]{"type":"fill-blank","question":"私___学生です。","hint":"topic marker","answer":"は","item":"は"}[/EXERCISE]
+
+Example fill-blank exercise (for vocab 飲む):
+[EXERCISE]{"type":"fill-blank","question":"毎日コーヒー___飲みます。","hint":"object marker","answer":"を","item":"を"}[/EXERCISE]
+
 Valid types: fill-blank, translate, choose.
 - "item" must match a curriculum title for progress tracking
 - Give ONE exercise at a time, then WAIT
-- When you include an [EXERCISE] block, your text should briefly introduce the exercise (1 sentence max), NOT repeat the question in prose
+- NEVER give the same exercise question twice in a conversation
 
-## Handling Exercise Answers
-When the student's message starts with "[ANSWER]", they are responding to your previous exercise.
-1. Evaluate their answer and give brief Socratic feedback (explain WHY right/wrong)
-2. Record the result with a [PROGRESS] block
-3. Do NOT repeat the same exercise
-4. Ask if they want another question or a different topic
-5. If giving another question, make it about a DIFFERENT item from the curriculum
+### ⚠️ Fill-in-the-Blank — THE GOLDEN RULE
+**The ___ MUST be where the answer goes.** Replacing ___ with the answer MUST produce a correct sentence.
+- If testing a PARTICLE (は, を, が, に, で, etc.), the particle itself must be ___.
+- The answer word must NOT appear anywhere else in the question sentence.
+- Before generating, mentally check: sentence.replace("___", answer) → is that correct Japanese? If not, redo.
+
+## Handling Exercise Answers — CRITICAL
+When the student responds to your exercise (either with an "[ANSWER]" prefix OR by typing directly in chat right after your exercise), evaluate their answer:
+1. **Re-read your exercise first**: Check the question, hint, and answer fields from the exercise you gave. Evaluate ONLY against the concept you were testing.
+2. **Be lenient**: Accept answers that are semantically correct even if worded differently. Accept alternative readings, synonyms, conjugation forms, or equivalent expressions.
+3. Only mark as incorrect if the answer shows genuine misunderstanding of the tested concept.
+4. Give brief, encouraging feedback (1-2 sentences max).
+5. ALWAYS record the result with a [PROGRESS] block — even for answers typed directly (not via [ANSWER]).
+6. **NEVER repeat the same exercise or item.** Next exercise MUST use a DIFFERENT curriculum item.
 
 ## Progress Tracking
-When the student answers correctly (in a quiz, exercise, or naturally in conversation), record:
-[PROGRESS]{"item":"exact item title from curriculum","correct":true}[/PROGRESS]
-When they answer incorrectly:
-[PROGRESS]{"item":"exact item title from curriculum","correct":false}[/PROGRESS]
+When the student answers correctly or acceptably, record:
+[PROGRESS]{"item":"は","correct":true}[/PROGRESS]
+When they answer truly incorrectly (shows misunderstanding):
+[PROGRESS]{"item":"は","correct":false}[/PROGRESS]
+The "item" value must be ONLY the title as listed in the curriculum (e.g. "は", "食べる", "日"). Do NOT append the meaning or description — use only the short title before any "—" dash.
+
+⚠️ IMPORTANT: Use ONLY straight double quotes (") in [PROGRESS], [FLASHCARD], and [EXERCISE] JSON blocks. Never use curly/smart quotes. ALWAYS include the closing [/PROGRESS] tag.
 
 When recording a correct answer, include brief encouragement in your response (e.g., "Nice! 🎉" or "Perfect! ✨").
 
@@ -109,6 +125,16 @@ If you see a [DOCUMENT FOCUS] hint, prioritize teaching items from that specific
 const conversationCache = new Map<string, ConversationMessage[]>();
 
 // ─── Response Parsing ────────────────────────────────────────
+
+/**
+ * Normalize smart/curly quotes to straight quotes so JSON.parse works.
+ * The AI sometimes outputs “” instead of "" which breaks parsing.
+ */
+function normalizeQuotes(text: string): string {
+  return text
+    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')  // smart double quotes
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");  // smart single quotes
+}
 
 interface ParsedFlashcard {
   front: string;
@@ -132,12 +158,13 @@ export interface ParsedExercise {
 
 function parseFlashcards(response: string): { cleanText: string; cards: ParsedFlashcard[] } {
   const cards: ParsedFlashcard[] = [];
-  const regex = /\[FLASHCARD\](\{[^]*?\})\[\/FLASHCARD\]/g;
+  // Match both [FLASHCARD]{...}[/FLASHCARD] AND [FLASHCARD]{...} (no closing tag)
+  const regex = /\[FLASHCARD\]\s*(\{[^}]*\})\s*(?:\[\/FLASHCARD\])?/g;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(response)) !== null) {
     try {
-      const parsed = JSON.parse(match[1]);
+      const parsed = JSON.parse(normalizeQuotes(match[1]));
       if (parsed.front && parsed.back && parsed.type) {
         const validTypes = ['vocab', 'grammar', 'kanji'];
         if (validTypes.includes(parsed.type)) {
@@ -149,18 +176,23 @@ function parseFlashcards(response: string): { cleanText: string; cards: ParsedFl
     }
   }
 
-  const cleanText = response.replace(/\[FLASHCARD\]\{[^]*?\}\[\/FLASHCARD\]/g, '').trim();
+  // Strip blocks — handle both closed and unclosed forms
+  const cleanText = response
+    .replace(/\[FLASHCARD\]\s*\{[^}]*\}\s*(?:\[\/FLASHCARD\])?/g, '')
+    .trim();
   return { cleanText, cards };
 }
 
 function parseProgressMarkers(response: string): { cleanText: string; updates: ParsedProgress[] } {
   const updates: ParsedProgress[] = [];
-  const regex = /\[PROGRESS\](\{[^]*?\})\[\/PROGRESS\]/g;
+  
+  // Match both [PROGRESS]{...}[/PROGRESS] AND [PROGRESS]{...} (no closing tag)
+  const regex = /\[PROGRESS\]\s*(\{[^}]*\})\s*(?:\[\/PROGRESS\])?/g;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(response)) !== null) {
     try {
-      const parsed = JSON.parse(match[1]);
+      const parsed = JSON.parse(normalizeQuotes(match[1]));
       if (parsed.item && typeof parsed.correct === 'boolean') {
         updates.push({ item: parsed.item, correct: parsed.correct });
       }
@@ -169,18 +201,22 @@ function parseProgressMarkers(response: string): { cleanText: string; updates: P
     }
   }
 
-  const cleanText = response.replace(/\[PROGRESS\]\{[^]*?\}\[\/PROGRESS\]/g, '').trim();
+  // Strip blocks — handle both closed and unclosed forms
+  const cleanText = response
+    .replace(/\[PROGRESS\]\s*\{[^}]*\}\s*(?:\[\/PROGRESS\])?/g, '')
+    .trim();
   return { cleanText, updates };
 }
 
 function parseExercises(response: string): { cleanText: string; exercises: ParsedExercise[] } {
   const exercises: ParsedExercise[] = [];
-  const regex = /\[EXERCISE\](\{[^]*?\})\[\/EXERCISE\]/g;
+  // Match both [EXERCISE]{...}[/EXERCISE] AND [EXERCISE]{...} (no closing tag)
+  const regex = /\[EXERCISE\]\s*(\{[^}]*\})\s*(?:\[\/EXERCISE\])?/g;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(response)) !== null) {
     try {
-      const parsed = JSON.parse(match[1]);
+      const parsed = JSON.parse(normalizeQuotes(match[1]));
       const validTypes = ['fill-blank', 'translate', 'choose'];
       if (parsed.question && parsed.answer && validTypes.includes(parsed.type)) {
         exercises.push({
@@ -197,7 +233,10 @@ function parseExercises(response: string): { cleanText: string; exercises: Parse
     }
   }
 
-  const cleanText = response.replace(/\[EXERCISE\]\{[^]*?\}\[\/EXERCISE\]/g, '').trim();
+  // Strip blocks — handle both closed and unclosed forms
+  const cleanText = response
+    .replace(/\[EXERCISE\]\s*\{[^}]*\}\s*(?:\[\/EXERCISE\])?/g, '')
+    .trim();
   return { cleanText, exercises };
 }
 
@@ -367,15 +406,11 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   // Strip any [THINK] blocks the AI may still generate (legacy safety net)
   const afterThinking = stripThinkingBlocks(rawResponse);
 
-  // Parse embedded flashcards
+  // Parse embedded blocks — always chain cleaned text forward (no || fallback)
   const { cleanText: afterFlashcards, cards } = parseFlashcards(afterThinking);
-
-  // Parse embedded progress markers
-  const { cleanText: afterProgress, updates } = parseProgressMarkers(afterFlashcards || afterThinking);
-
-  // Parse embedded exercises
-  const { cleanText: afterExercises, exercises } = parseExercises(afterProgress || afterFlashcards || afterThinking);
-  const response = afterExercises || afterProgress || afterFlashcards || afterThinking;
+  const { cleanText: afterProgress, updates } = parseProgressMarkers(afterFlashcards);
+  const { cleanText: afterExercises, exercises } = parseExercises(afterProgress);
+  const response = afterExercises || afterThinking;
 
   console.log(`✂️ Parsed: ${rawResponse.length}→${response.length} chars, ${cards.length} cards, ${exercises.length} exercises, ${updates.length} progress`);
 
@@ -394,13 +429,41 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   let progressUpdates = 0;
   for (const update of updates) {
     try {
-      const nodes = await searchNodes(update.item);
-      const exact = nodes.find((n) => n.title === update.item);
-      if (exact) {
-        await recordAnswer(exact.nodeId, update.correct);
+      // Normalize the item name (AI may add extra context like "は — Topic Marker")
+      const itemName = normalizeQuotes(update.item).trim();
+      const nodes = await searchNodes(itemName);
+      
+      // Try multiple matching strategies:
+      // 1. Exact match
+      let match = nodes.find((n) => n.title === itemName);
+      
+      // 2. The item name contains the title (AI adds extra like "は — Topic Marker")
+      if (!match) {
+        match = nodes.find((n) => itemName.startsWith(n.title));
+      }
+      
+      // 3. The title contains the item name
+      if (!match) {
+        match = nodes.find((n) => n.title.startsWith(itemName));
+      }
+      
+      // 4. Split on " — " or " - " and match just the first part
+      if (!match) {
+        const cleanItem = itemName.split(/\s*[—\-]\s*/)[0].trim();
+        if (cleanItem) {
+          const cleanNodes = await searchNodes(cleanItem);
+          match = cleanNodes.find((n) => n.title === cleanItem) 
+               || cleanNodes.find((n) => n.title.startsWith(cleanItem))
+               || cleanNodes[0]; // Best fuzzy match
+        }
+      }
+      
+      if (match) {
+        await recordAnswer(match.nodeId, update.correct);
         progressUpdates++;
+        console.log(`📊 Progress recorded: "${match.title}" correct=${update.correct}`);
       } else {
-        console.warn(`Progress marker: item "${update.item}" not found in curriculum`);
+        console.warn(`Progress marker: item "${itemName}" not found in curriculum`);
       }
     } catch (err) {
       console.warn(`Failed to record progress for "${update.item}":`, err);

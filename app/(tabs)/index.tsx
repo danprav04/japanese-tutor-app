@@ -309,6 +309,12 @@ export default function ChatScreen() {
               );
             }
 
+            // Strip [ANSWER] prefix from user messages (it's an internal signal for the AI)
+            let displayText = currentMessage.text;
+            if (displayText.startsWith('[ANSWER] ')) {
+              displayText = displayText.replace('[ANSWER] ', '');
+            }
+
             return (
               <View style={{ paddingHorizontal: 10, paddingVertical: 5 }}>
                 <Markdown
@@ -322,7 +328,7 @@ export default function ChatScreen() {
                     ),
                   }}
                 >
-                  {currentMessage.text}
+                  {displayText}
                 </Markdown>
               </View>
             );
