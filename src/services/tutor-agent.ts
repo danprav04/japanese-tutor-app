@@ -19,7 +19,6 @@ import {
   resolveDocument,
   getDocumentLearningContext,
   getAvailableDocuments,
-  type DocumentLearningState,
 } from './document-learning-service';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -37,159 +36,77 @@ interface ConversationState {
 
 // ─── System Prompt ───────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are a friendly and encouraging Japanese language tutor named Sensei.
+const SYSTEM_PROMPT = `You are a friendly Japanese language tutor named Sensei. You chat with students on a MOBILE app.
 
-You have access to the student's CURRICULUM STATUS below. Use it to guide your teaching:
+## CRITICAL — Response Length
+- Keep responses to **2-4 sentences**. This is a phone screen, not a textbook.
+- Only expand to 5+ sentences if the student specifically asks for a detailed explanation.
+- Use bullet points for lists, never paragraphs.
+- ONE concept per message. Don't teach 3 things at once.
 
-## Hidden Thinking Phase (CRITICAL)
-Before EVERY response, you MUST include a hidden thinking block. This is your internal analysis — the student will never see it.
-Wrap your thinking in [THINK]...[/THINK] tags. In this block:
-1. **Diagnose**: Identify any errors in the student's Japanese (particle mistakes, conjugation, word choice)
-2. **Feedback strategy**: Decide which feedback type to use:
-   - Explicit correction (when student is stuck/confused)
-   - Recast (reformulate naturally for minor slips)
-   - Metalinguistic clue ("Remember, this verb is irregular")
-   - Clarification request ("Could you say that differently?")
-3. **Review plan**: Note which review items from the ITEMS DUE FOR REVIEW section you'll weave into your response
-4. **Pitch accent**: If teaching vocab, note the pitch accent pattern
+## Teaching Strategy (Curriculum-Driven)
+You have access to the student's CURRICULUM STATUS below.
+1. **Prioritize unmastered items** (📕 NOT YET LEARNED) — teach these first
+2. **Review weak items** (📙 STILL LEARNING) — weave into conversation naturally
+3. **Skip mastered items** (✅) — don't re-teach unless asked
+4. When starting a new conversation, pick 1-2 unmastered items to focus on
+5. Mix grammar + vocab together naturally
+6. After explaining something, ask the student a quick question to check understanding
 
-Example:
-[THINK]Student said "watashi wa gakkou ni ikimashita". Correct! They used particle に correctly with movement verb. I'll use a Recast to reinforce. For review, I'll work in 食べる from the due items by asking about lunch.[/THINK]
+## First Message Behavior
+If there is NO conversation history, start by greeting the student briefly (1 sentence) and suggesting what to work on based on their curriculum.
+Example: "Hey! 👋 Ready to learn some new vocab? I see you haven't covered 食べる (to eat) yet — want to start there?"
 
-## Teaching Strategy (SRS-Driven)
-1. **Prioritize unmastered items** (📕 NOT YET LEARNED section) — introduce these in your lessons
-2. **Review weak items** (📙 STILL LEARNING section) — weave them into conversations and exercises
-3. **Lightly reinforce** (📗 ALMOST MASTERED section) — mention these occasionally in context
-4. **Skip mastered items** (✅) — don't re-teach unless the student asks
-5. When starting a new conversation, pick 2-3 unmastered items to teach as a coherent mini-lesson
-6. Mix grammar + vocab together (e.g., teach a grammar pattern using vocab from the curriculum)
-7. After explaining, quiz the student on what you just taught
-
-## Contextual SRS Review (MANDATORY)
-If there is an "ITEMS DUE FOR REVIEW" section below, you MUST:
-- Use at least ONE review keyword/item naturally in EVERY response
-- Work them into example sentences, questions, or conversation
-- Do NOT create a separate "review section" — blend them seamlessly
-Example: If 図書館 (library) is due for review, say: "Great job with that grammar! 📝 By the way, 昨日図書館に行きましたか？ (Did you go to the library yesterday?)"
+## Contextual SRS Review
+If there is an "ITEMS DUE FOR REVIEW" section below, work at least ONE review item into your response naturally as an example sentence or question. Do NOT create a separate review section.
 
 ## Pitch Accent
-When introducing vocabulary, include the pitch accent pattern after the reading:
-- Use H (high) and L (low) notation: e.g., はし (箸) — chopsticks — Pitch: HL
-- This helps students distinguish words like はし (箸, HL = chopsticks) vs はし (橋, LH = bridge)
-- For compound words, show the full pattern: e.g., がっこう (学校) — school — Pitch: LHLL
+When introducing vocabulary, include the pitch accent pattern:
+- Use H (high) / L (low) notation: e.g., はし (箸) — chopsticks — Pitch: HL
+- For compound words: がっこう (学校) — school — Pitch: LHLL
 
-## Response Guidelines
-- Keep responses concise but informative (mobile screen)
-- Use emoji sparingly for friendliness (🎌, ✨, 📝)
-- Always show Japanese text alongside English translations
-- For grammar, explain the pattern and give 2-3 examples
-- For vocab, include reading (furigana), meaning, pitch accent, and usage
-- When the student asks to practice, create exercises using curriculum items
-- Celebrate progress and encourage continued study
+## Flashcard Generation — STRICT RULES
+⚠️ Do NOT generate flashcards by default. ONLY create a flashcard when:
+1. The student explicitly asks ("save this", "make a flashcard", "add to my deck"), OR
+2. You are doing a structured teach-and-quiz session and introduce a genuinely NEW item not already in the curriculum
 
-## Flashcard Generation
-When you teach a NEW vocabulary word, grammar point, or kanji, include a flashcard block at the END of your response:
+Most responses should have ZERO flashcard blocks. When you do create one:
 [FLASHCARD]{"front":"日本語 text","back":"English meaning (reading) [Pitch: HLL]","type":"vocab"}[/FLASHCARD]
-Valid types: vocab, grammar, kanji. You may include multiple blocks.
-For vocab flashcards, always include the pitch accent pattern in the back field.
-Do NOT include flashcards for items already in the curriculum (check the status below).
+Valid types: vocab, grammar, kanji.
 
 ## Exercise Generation (Quiz Mode)
-When the student asks to practice, be quizzed, or says "quiz me", generate exercises using this format:
+When the student asks to practice, be quizzed, or says "quiz me", generate ONE exercise:
 [EXERCISE]{"type":"fill-blank","question":"私は毎日コーヒーを___ます。","hint":"to drink","answer":"飲み","item":"飲む"}[/EXERCISE]
-[EXERCISE]{"type":"translate","question":"I go to school every day.","answer":"毎日学校に行きます。","item":"行く"}[/EXERCISE]
-[EXERCISE]{"type":"choose","question":"What is the reading of 食べる?","options":["たべる","のべる","くべる"],"answer":"たべる","item":"食べる"}[/EXERCISE]
 Valid types: fill-blank, translate, choose.
 - "item" must match a curriculum title for progress tracking
-- Give ONE exercise at a time, wait for the student to answer
-- After they answer, provide Socratic feedback (explain WHY, not just right/wrong)
-- Then offer the next exercise or ask if they want to continue
+- Give ONE exercise at a time, then WAIT
+- When you include an [EXERCISE] block, your text should briefly introduce the exercise (1 sentence max), NOT repeat the question in prose
+
+## Handling Exercise Answers
+When the student's message starts with "[ANSWER]", they are responding to your previous exercise.
+1. Evaluate their answer and give brief Socratic feedback (explain WHY right/wrong)
+2. Record the result with a [PROGRESS] block
+3. Do NOT repeat the same exercise
+4. Ask if they want another question or a different topic
+5. If giving another question, make it about a DIFFERENT item from the curriculum
+
+## Progress Tracking
+When the student answers correctly (in a quiz, exercise, or naturally in conversation), record:
+[PROGRESS]{"item":"exact item title from curriculum","correct":true}[/PROGRESS]
+When they answer incorrectly:
+[PROGRESS]{"item":"exact item title from curriculum","correct":false}[/PROGRESS]
+
+When recording a correct answer, include brief encouragement in your response (e.g., "Nice! 🎉" or "Perfect! ✨").
 
 ## Dictionary Results
-If a [DICTIONARY] block is present in the conversation, use it as a ground-truth reference for your definitions. Prefer dictionary data over your own knowledge for accuracy.
+If a [DICTIONARY] block is present, use it as ground-truth for definitions.
 
-## Progress Tracking
-When you quiz the student and they answer, record their result using:
-[PROGRESS]{"item":"exact item title from curriculum","correct":true}[/PROGRESS]
-[PROGRESS]{"item":"exact item title from curriculum","correct":false}[/PROGRESS]
-Use this EVERY time you verify the student's understanding — after quizzes, exercises, or when they use a word/pattern correctly in conversation.
-The "item" must match a title from the curriculum status above. Set "correct" to true if they got it right, false if wrong.`;
-
-// ─── Document Learning System Prompt ─────────────────────────
-
-const DOCUMENT_LEARNING_PROMPT = `You are a friendly and encouraging Japanese language tutor named Sensei.
-
-You are in DOCUMENT LEARNING MODE. The student wants to learn from a specific document.
-Below you will see the document's curriculum items and the student's progress on each.
-
-## Hidden Thinking Phase (CRITICAL)
-Before EVERY response, include a hidden thinking block wrapped in [THINK]...[/THINK] tags.
-Use it to:
-1. Diagnose any errors in the student's input
-2. Decide which feedback type to use (explicit, recast, metalinguistic, clarification)
-3. Plan what to teach next based on document progress
-4. Note pitch accent patterns for vocabulary items
-
-## Teaching Rules (CRITICAL — follow these strictly)
-1. **Teach ONE item at a time** — never introduce multiple new items in a single message
-2. **Keep responses SHORT** — 3-5 sentences max. Mobile screen, remember!
-3. **Wait for the student's answer** before moving on to the next item
-4. **Start from the 🎯 NEXT ITEM TO TEACH** shown in the document status
-5. **Follow this flow for each item:**
-   a. Introduce the item (what it means, how to read it, pitch accent for vocab)
-   b. Give one clear example
-   c. Ask a simple question to check understanding
-   d. If they get it right → mark progress and move to next item
-   e. If they get it wrong → explain again briefly, give another example, re-quiz
-6. **Never dump a list of items** — the student should only see one item at a time
-7. **Celebrate small wins** — when they master an item, acknowledge it! 🎉
-8. When ALL items are mastered, congratulate them and suggest reviewing weak items
-
-## Pitch Accent
-When teaching vocabulary, include the pitch accent pattern: e.g., たべる (食べる) — to eat — Pitch: LHH
-Use H (high) and L (low) notation.
-
-## Response Guidelines
-- Keep responses concise (mobile screen)
-- Use emoji sparingly for friendliness (🎌, ✨, 📝)
-- Always show Japanese text alongside English translations
-- For vocab: include reading (furigana), meaning, pitch accent, and one usage example
-- For grammar: explain the pattern and give one example
-- For kanji: show readings (on/kun) and meaning
-
-## Flashcard Generation
-When you teach a NEW vocabulary word, grammar point, or kanji, include a flashcard block at the END of your response:
-[FLASHCARD]{"front":"日本語 text","back":"English meaning (reading) [Pitch: HLL]","type":"vocab"}[/FLASHCARD]
-Valid types: vocab, grammar, kanji. Only include ONE flashcard per message.
-For vocab flashcards, include pitch accent in the back field.
-
-## Progress Tracking
-When you quiz the student and they answer, record their result using:
-[PROGRESS]{"item":"exact item title from document","correct":true}[/PROGRESS]
-[PROGRESS]{"item":"exact item title from document","correct":false}[/PROGRESS]
-Use this EVERY time you verify the student's understanding.`;
+## Document Focus
+If you see a [DOCUMENT FOCUS] hint, prioritize teaching items from that specific document. Teach them one at a time, waiting for the student's response before moving to the next item.`;
 
 // ─── In-memory conversation cache ────────────────────────────
 
 const conversationCache = new Map<string, ConversationMessage[]>();
-
-// ─── Per-thread document learning state ──────────────────────
-
-const documentLearningState = new Map<string, DocumentLearningState>();
-
-/**
- * Check if a thread is in document learning mode.
- */
-export function getThreadDocumentState(threadId: string): DocumentLearningState | null {
-  return documentLearningState.get(threadId) || null;
-}
-
-/**
- * Clear document learning mode for a thread.
- */
-export function clearThreadDocumentState(threadId: string): void {
-  documentLearningState.delete(threadId);
-}
 
 // ─── Response Parsing ────────────────────────────────────────
 
@@ -211,19 +128,6 @@ export interface ParsedExercise {
   options?: string[];
   answer: string;
   item: string;
-}
-
-function parseThinkingBlocks(response: string): { cleanText: string; thinking: string | null } {
-  const regex = /\[THINK\]([^]*?)\[\/THINK\]/g;
-  let thinking: string | null = null;
-  let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(response)) !== null) {
-    thinking = (thinking || '') + match[1].trim();
-  }
-
-  const cleanText = response.replace(/\[THINK\][^]*?\[\/THINK\]/g, '').trim();
-  return { cleanText, thinking };
 }
 
 function parseFlashcards(response: string): { cleanText: string; cards: ParsedFlashcard[] } {
@@ -297,6 +201,12 @@ function parseExercises(response: string): { cleanText: string; exercises: Parse
   return { cleanText, exercises };
 }
 
+// ─── Legacy: strip any [THINK] blocks if the AI still generates them ───
+
+function stripThinkingBlocks(response: string): string {
+  return response.replace(/\[THINK\][^]*?\[\/THINK\]/g, '').trim();
+}
+
 // ─── Public API ──────────────────────────────────────────────
 
 // ─── Conversation Summarization ──────────────────────────────
@@ -311,8 +221,6 @@ const KEEP_RECENT = 10;
 async function summarizeIfNeeded(messages: ConversationMessage[]): Promise<ConversationMessage[]> {
   if (messages.length <= SUMMARIZATION_THRESHOLD) return messages;
 
-  // Check if already summarized (first message is a summary)
-  const firstMsg = messages[0];
   const oldMessages = messages.slice(0, messages.length - KEEP_RECENT);
   const recentMessages = messages.slice(messages.length - KEEP_RECENT);
 
@@ -359,9 +267,6 @@ export function createNewThread(): string {
 /**
  * Send a message to the tutor and get a response.
  */
-/**
- * Send a message to the tutor and get a response.
- */
 export async function sendMessage(threadId: string, userMessage: string): Promise<{
   text: string;
   cardsCreated: number;
@@ -378,17 +283,17 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     conversationCache.set(threadId, messages);
   }
 
-  // ─── Document learning intent detection ──────────────────
+  // ─── Document focus detection ──────────────────────────────
+  // Instead of a separate "mode", we inject a hint for the AI
+  let documentFocusHint = '';
   const docIntent = detectDocumentLearningIntent(userMessage);
   if (docIntent) {
     try {
       const doc = await resolveDocument(docIntent);
       if (doc) {
-        documentLearningState.set(threadId, {
-          filename: doc.filename,
-          documentName: doc.filename,
-        });
-        console.log(`📖 Document learning mode activated: ${doc.filename}`);
+        const docContext = await getDocumentLearningContext(doc.filename);
+        documentFocusHint = `\n\n[DOCUMENT FOCUS: "${doc.filename}"]\n${docContext}`;
+        console.log(`📖 Document focus detected: ${doc.filename}`);
       } else {
         // List available documents so the AI can suggest them
         const available = await getAvailableDocuments();
@@ -397,7 +302,6 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
           ? `Available documents: ${docNames}`
           : 'No documents have been uploaded yet.';
         
-        // Add as a system hint in the user message
         userMessage = `${userMessage}\n\n[System: Document "${docIntent}" was not found. ${hint}]`;
       }
     } catch (err) {
@@ -427,78 +331,53 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   };
   messages.push(userMsg);
 
-  // Build conversation context for the model
   // Summarize if conversation is getting too long
   messages = await summarizeIfNeeded(messages);
   conversationCache.set(threadId, messages);
 
+  // Build conversation context for the model
   const conversationContext = messages
     .slice(-20)
     .map((m) => `${m.role === 'user' ? 'Student' : 'Sensei'}: ${m.content}`)
     .join('\n\n');
 
-  // ─── Choose prompt based on document learning mode ───────
-  const docState = documentLearningState.get(threadId);
-  let fullPrompt: string;
-
-  if (docState) {
-    // Document learning mode — use focused prompt + document context
-    let docContext = '';
-    try {
-      docContext = await getDocumentLearningContext(docState.filename);
-    } catch (err) {
-      console.warn('Failed to load document learning context:', err);
-    }
-
-    fullPrompt = docContext
-      ? `${DOCUMENT_LEARNING_PROMPT}\n\n${docContext}${dictionaryContext}\n\n---\n\n${conversationContext}\n\nSensei:`
-      : `${DOCUMENT_LEARNING_PROMPT}${dictionaryContext}\n\n${conversationContext}\n\nSensei:`;
-  } else {
-    // Normal mode — use general curriculum context + review context
-    let curriculumContext = '';
-    let reviewContext = '';
-    try {
-      [curriculumContext, reviewContext] = await Promise.all([
-        buildCurriculumContext(),
-        getReviewContext(),
-      ]);
-    } catch (err) {
-      console.warn('Failed to load curriculum/review context:', err);
-    }
-
-    const contextParts = [SYSTEM_PROMPT, curriculumContext, reviewContext]
-      .filter(Boolean)
-      .join('\n\n');
-
-    fullPrompt = `${contextParts}${dictionaryContext}\n\n---\n\n${conversationContext}\n\nSensei:`;
+  // ─── Build unified prompt ──────────────────────────────────
+  let curriculumContext = '';
+  let reviewContext = '';
+  try {
+    [curriculumContext, reviewContext] = await Promise.all([
+      buildCurriculumContext(),
+      getReviewContext(),
+    ]);
+  } catch (err) {
+    console.warn('Failed to load curriculum/review context:', err);
   }
+
+  const contextParts = [SYSTEM_PROMPT, curriculumContext, reviewContext, documentFocusHint]
+    .filter(Boolean)
+    .join('\n\n');
+
+  const fullPrompt = `${contextParts}${dictionaryContext}\n\n---\n\n${conversationContext}\n\nSensei:`;
 
   // Generate response
   console.log('🤖 asking gemini...');
   const rawResponse = await client.generate(fullPrompt);
   console.log('🤖 got raw response');
 
-  // Strip hidden thinking blocks (CoT reasoning)
-  const { cleanText: afterThinking, thinking } = parseThinkingBlocks(rawResponse);
-  if (thinking) {
-    console.log('🧠 Tutor thinking:', thinking.substring(0, 200));
-  }
+  // Strip any [THINK] blocks the AI may still generate (legacy safety net)
+  const afterThinking = stripThinkingBlocks(rawResponse);
 
   // Parse embedded flashcards
-  const { cleanText: afterFlashcards, cards } = parseFlashcards(afterThinking || rawResponse);
+  const { cleanText: afterFlashcards, cards } = parseFlashcards(afterThinking);
 
   // Parse embedded progress markers
-  const { cleanText: afterProgress, updates } = parseProgressMarkers(afterFlashcards || afterThinking || rawResponse);
+  const { cleanText: afterProgress, updates } = parseProgressMarkers(afterFlashcards || afterThinking);
 
   // Parse embedded exercises
-  const { cleanText: afterExercises, exercises } = parseExercises(afterProgress || afterFlashcards || afterThinking || rawResponse);
-  const response = afterExercises || afterProgress || afterFlashcards || afterThinking || rawResponse;
+  const { cleanText: afterExercises, exercises } = parseExercises(afterProgress || afterFlashcards || afterThinking);
+  const response = afterExercises || afterProgress || afterFlashcards || afterThinking;
 
-  console.log(`✂️ Parsed Response:
-    Original: ${rawResponse.length} chars
-    After Thinking: ${afterThinking?.length ?? 'null'} chars
-    Final Response: ${response.length} chars
-    Final Text: "${response.substring(0, 100)}..."`);
+  console.log(`✂️ Parsed: ${rawResponse.length}→${response.length} chars, ${cards.length} cards, ${exercises.length} exercises, ${updates.length} progress`);
 
   // Auto-create flashcards
   let cardsCreated = 0;
@@ -515,7 +394,6 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   let progressUpdates = 0;
   for (const update of updates) {
     try {
-      // Look up the curriculum node by title
       const nodes = await searchNodes(update.item);
       const exact = nodes.find((n) => n.title === update.item);
       if (exact) {
@@ -533,7 +411,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   try {
     await updateStudyStreak();
   } catch {
-    // Non-critical — don't block the response
+    // Non-critical
   }
 
   // Add assistant message
@@ -544,25 +422,34 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   };
   messages.push(assistantMsg);
 
-  // Persist conversation state
+  // Persist conversation state & generate title
   try {
     const checkpointId = uuidv4();
     const state: ConversationState = { messages };
-    await saveCheckpoint(threadId, checkpointId, state as unknown as Record<string, unknown>);
 
-    // Generate title for new conversations (first exchange)
+    // Generate title for new conversations (first exchange = 2 messages)
+    let titleMetadata: Record<string, unknown> | undefined;
     if (messages.length === 2) {
       try {
         const titlePrompt = `Generate a very short title (3-5 words, no quotes) for this tutoring conversation. First message: "${messages[0].content.slice(0, 100)}"\nTitle:`;
         const title = await client.generate(titlePrompt);
         const cleanTitle = title.replace(/["']/g, '').trim().slice(0, 50);
         if (cleanTitle) {
-          await setThreadTitle(threadId, cleanTitle);
+          titleMetadata = { thread_title: cleanTitle };
         }
       } catch {
         // Non-critical
       }
     }
+
+    // Save checkpoint WITH title metadata (fixes race condition)
+    await saveCheckpoint(
+      threadId,
+      checkpointId,
+      state as unknown as Record<string, unknown>,
+      undefined,
+      titleMetadata,
+    );
   } catch (err) {
     console.warn('Failed to save conversation checkpoint:', err);
   }
@@ -595,7 +482,6 @@ export async function loadConversationHistory(threadId: string): Promise<Convers
  * Returns the query string if detected, null otherwise.
  */
 function detectDictionaryQuery(message: string): string | null {
-  // Check for explicit lookup patterns
   const patterns = [
     /what (?:does|is|means?) ["「]?([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)["」]?/i,
     /(?:meaning|definition) of ["「]?([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)["」]?/i,
@@ -613,4 +499,3 @@ function detectDictionaryQuery(message: string): string | null {
 
   return null;
 }
-

@@ -77,13 +77,13 @@ export async function buildCurriculumContext(): Promise<string> {
     const grouped = groupByType(unlearned);
     for (const [type, typeItems] of Object.entries(grouped)) {
       lines.push(`  ${typeLabel(type)}:`);
-      // Show up to 15 items per type to avoid overwhelming the prompt
-      for (const item of typeItems.slice(0, 15)) {
+      // Show up to 8 items per type to keep context compact
+      for (const item of typeItems.slice(0, 8)) {
         const detail = item.meaning ? ` — ${item.meaning}` : '';
         lines.push(`    • ${item.title}${detail}`);
       }
-      if (typeItems.length > 15) {
-        lines.push(`    ... and ${typeItems.length - 15} more`);
+      if (typeItems.length > 8) {
+        lines.push(`    ... and ${typeItems.length - 8} more`);
       }
     }
     lines.push('');
@@ -94,8 +94,8 @@ export async function buildCurriculumContext(): Promise<string> {
     lines.push('📙 STILL LEARNING (review these occasionally):');
     const grouped = groupByType(learning);
     for (const [type, typeItems] of Object.entries(grouped)) {
-      const titles = typeItems.slice(0, 10).map((i) => i.title).join(', ');
-      const extra = typeItems.length > 10 ? ` +${typeItems.length - 10} more` : '';
+      const titles = typeItems.slice(0, 6).map((i) => i.title).join(', ');
+      const extra = typeItems.length > 6 ? ` +${typeItems.length - 6} more` : '';
       lines.push(`  ${typeLabel(type)}: ${titles}${extra}`);
     }
     lines.push('');
@@ -106,8 +106,8 @@ export async function buildCurriculumContext(): Promise<string> {
     lines.push('📗 ALMOST MASTERED (light review):');
     const grouped = groupByType(familiar);
     for (const [type, typeItems] of Object.entries(grouped)) {
-      const titles = typeItems.slice(0, 8).map((i) => i.title).join(', ');
-      const extra = typeItems.length > 8 ? ` +${typeItems.length - 8} more` : '';
+      const titles = typeItems.slice(0, 4).map((i) => i.title).join(', ');
+      const extra = typeItems.length > 4 ? ` +${typeItems.length - 4} more` : '';
       lines.push(`  ${typeLabel(type)}: ${titles}${extra}`);
     }
     lines.push('');

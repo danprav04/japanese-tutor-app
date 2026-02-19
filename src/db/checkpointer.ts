@@ -154,13 +154,22 @@ export interface ThreadSummary {
  */
 export async function listThreads(): Promise<ThreadSummary[]> {
   const db = getDatabase();
+
+  // Get latest checkpoint per thread for data, and look for title in ANY checkpoint
   const result = await db.execute(
-    `SELECT thread_id, checkpoint_data, created_at
-     FROM checkpoints
-     WHERE (thread_id, created_at) IN (
+    `SELECT c1.thread_id, c1.checkpoint_data, c1.created_at,
+            c2.metadata as title_metadata
+     FROM checkpoints c1
+     LEFT JOIN (
+       SELECT thread_id, metadata
+       FROM checkpoints
+       WHERE metadata IS NOT NULL AND metadata LIKE '%thread_title%'
+       GROUP BY thread_id
+     ) c2 ON c1.thread_id = c2.thread_id
+     WHERE (c1.thread_id, c1.created_at) IN (
        SELECT thread_id, MAX(created_at) FROM checkpoints GROUP BY thread_id
      )
-     ORDER BY created_at DESC`
+     ORDER BY c1.created_at DESC`
   );
 
   if (!result.rows) return [];
@@ -173,7 +182,6 @@ export async function listThreads(): Promise<ThreadSummary[]> {
       const data = JSON.parse(row.checkpoint_data as string);
       if (Array.isArray(data.messages)) {
         messageCount = data.messages.length;
-        // Find the first user message for a meaningful preview
         const firstUserMsg = data.messages.find((m: any) => m.role === 'user');
         if (firstUserMsg) {
           preview = firstUserMsg.content.slice(0, 60);
@@ -181,9 +189,11 @@ export async function listThreads(): Promise<ThreadSummary[]> {
         }
       }
     } catch {}
+    // Check title from any checkpoint's metadata (fixes race condition)
     try {
-      if (row.metadata) {
-        const meta = JSON.parse(row.metadata as string);
+      const metaStr = row.title_metadata || row.metadata;
+      if (metaStr) {
+        const meta = JSON.parse(metaStr as string);
         title = meta.thread_title || null;
       }
     } catch {}

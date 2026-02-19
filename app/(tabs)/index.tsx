@@ -18,9 +18,8 @@ import Markdown from 'react-native-markdown-display';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useAppStore } from '../../src/store/app-store';
-import { sendMessage, loadConversationHistory, createNewThread, initTutor, getThreadDocumentState, clearThreadDocumentState, type ParsedExercise } from '../../src/services/tutor-agent';
+import { sendMessage, loadConversationHistory, createNewThread, initTutor, type ParsedExercise } from '../../src/services/tutor-agent';
 import { listThreads, deleteThread, type ThreadSummary } from '../../src/db/checkpointer';
-import { type DocumentLearningState } from '../../src/services/document-learning-service';
 import ExerciseCard from '../../src/components/ExerciseCard';
 
 const SENSEI_USER = {
@@ -37,7 +36,7 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
-  const [docLearningMode, setDocLearningMode] = useState<DocumentLearningState | null>(null);
+
   const initialized = useRef(false);
   const tabBarHeight = useBottomTabBarHeight();
   const headerHeight = useHeaderHeight();
@@ -83,7 +82,6 @@ export default function ChatScreen() {
     const newId = createNewThread();
     setCurrentThreadId(newId);
     setMessages([]);
-    setDocLearningMode(null);
   }, [setCurrentThreadId]);
 
   const handleOpenHistory = useCallback(async () => {
@@ -101,9 +99,6 @@ export default function ChatScreen() {
       setShowHistory(false);
       setCurrentThreadId(threadId);
       setMessages([]);
-      // Check if the selected thread has active document learning
-      const docState = getThreadDocumentState(threadId);
-      setDocLearningMode(docState);
       await loadThread(threadId);
     },
     [setCurrentThreadId],
@@ -141,7 +136,7 @@ export default function ChatScreen() {
       setTimeout(() => {
         const noKeyMsg: IMessage = {
           _id: `no-key-${Date.now()}`,
-          text: '🔑 Please add a Gemini API key in the Settings tab to enable AI responses. You can get a free key from Google AI Studio!',
+          text: '🔑 Add an API key in Settings to start.',
           createdAt: new Date(),
           user: SENSEI_USER,
         };
@@ -162,11 +157,7 @@ export default function ChatScreen() {
       const { text: response, cardsCreated, progressUpdates, exercises } = await sendMessage(threadId, userMessage.text);
       console.log('📱 ChatScreen received response:', { length: response.length, exercises: exercises.length, cards: cardsCreated });
 
-      // Check if document learning mode was activated
-      const docState = getThreadDocumentState(threadId);
-      if (docState && !docLearningMode) {
-        setDocLearningMode(docState);
-      }
+
 
       const aiMessage: IMessage = {
         _id: `ai-${Date.now()}`,
@@ -217,9 +208,12 @@ export default function ChatScreen() {
         }, cardsCreated > 0 || progressUpdates > 0 ? 1500 : 500);
       }
     } catch (error) {
+      const errText = error instanceof Error ? error.message : 'Something went wrong.';
+      // Keep error messages short and actionable
+      const shortErr = errText.length > 80 ? errText.slice(0, 80) + '…' : errText;
       const errorMsg: IMessage = {
         _id: `error-${Date.now()}`,
-        text: `⚠️ Error: ${error instanceof Error ? error.message : 'Failed to generate response'}.\n\nPlease check your API key in Settings and try again.`,
+        text: `⚠️ ${shortErr}`,
         createdAt: new Date(),
         user: SENSEI_USER,
       };
@@ -227,6 +221,7 @@ export default function ChatScreen() {
     } finally {
       setIsTyping(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGeminiReady, currentThreadId, setCurrentThreadId]);
 
   const formatDate = (dateStr: string) => {
@@ -256,28 +251,10 @@ export default function ChatScreen() {
         enabled
         keyboardVerticalOffset={Platform.OS === 'ios' ? tabBarHeight : headerHeight}
       >
-        {/* Document learning mode banner */}
-        {docLearningMode && (
-          <View style={styles.docBanner}>
-            <Text style={styles.docBannerText}>📖 Learning: {docLearningMode.documentName}</Text>
-            <TouchableOpacity
-              onPress={() => {
-                if (currentThreadId && currentThreadId !== 'default') {
-                  clearThreadDocumentState(currentThreadId);
-                }
-                setDocLearningMode(null);
-              }}
-              style={styles.docBannerClose}
-            >
-              <Text style={styles.docBannerCloseText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
         {messages.length === 0 && (
           <View style={styles.startContainer}>
-            <Text style={styles.startText}>How can I help you learn Japanese today?</Text>
-            <Text style={styles.startSubText}>Try "let's start learning [document name]" to study an uploaded document step by step!</Text>
+            <Text style={styles.startText}>Start a conversation with Sensei 🎓</Text>
+            <Text style={styles.startSubText}>Say "hi", ask about a word, or say "quiz me"</Text>
           </View>
         )}
         <GiftedChat
@@ -317,10 +294,10 @@ export default function ChatScreen() {
                       key={`ex-${i}`}
                       exercise={ex}
                       onAnswer={(answer) => {
-                        // Send the answer as a user message
+                        // Prefix with [ANSWER] so the agent knows this is an exercise response
                         const answerMsg: IMessage[] = [{
                           _id: `answer-${Date.now()}-${i}`,
-                          text: answer,
+                          text: `[ANSWER] ${answer}`,
                           createdAt: new Date(),
                           user: { _id: 1 },
                         }];
@@ -726,29 +703,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     paddingTop: 12,
-  },
-  docBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#1a1a2e',
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a4a',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  docBannerText: {
-    color: '#a5b4fc',
-    fontSize: 14,
-    fontWeight: '600',
-    flex: 1,
-  },
-  docBannerClose: {
-    padding: 4,
-    marginLeft: 8,
-  },
-  docBannerCloseText: {
-    color: '#666',
-    fontSize: 16,
   },
 });
