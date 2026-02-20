@@ -17,8 +17,12 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
+  Dimensions,
 } from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import type { ParsedExercise } from '../services/tutor-agent';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 interface ExerciseCardProps {
   exercise: ParsedExercise;
@@ -56,7 +60,21 @@ export default function ExerciseCard({ exercise, onAnswer }: ExerciseCardProps) 
       </Text>
 
       {/* Question */}
-      <Text style={styles.question}>{exercise.question}</Text>
+      <View style={styles.markdownWrapper}>
+        <Markdown
+          style={markdownStyles}
+          rules={{
+            // Disable default paragraph margin to fit better in card
+            paragraph: (node: any, children: any, parent: any, styles: any) => (
+              <Text key={node.key} style={styles.paragraph}>
+                {children}
+              </Text>
+            ),
+          }}
+        >
+          {exercise.question}
+        </Markdown>
+      </View>
 
       {/* Hint */}
       {exercise.hint && (
@@ -289,6 +307,43 @@ const styles = StyleSheet.create({
   submittedHint: {
     color: '#666',
     fontSize: 13,
+    fontStyle: 'italic',
+  },
+  markdownWrapper: {
+    marginBottom: 8,
+  },
+});
+
+const markdownStyles = StyleSheet.create({
+  body: {
+    color: '#fff',
+    fontSize: 18,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    maxWidth: SCREEN_WIDTH * 0.8,
+  },
+  paragraph: {
+    marginVertical: 0,
+    flexWrap: 'wrap',
+    flexDirection: 'row',
+  },
+  code_inline: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  fence: {
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 8,
+    padding: 10,
+    marginVertical: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  strong: {
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  em: {
     fontStyle: 'italic',
   },
 });

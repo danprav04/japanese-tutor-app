@@ -19,10 +19,9 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useRouter } from 'expo-router';
 import { useAppStore } from '../../src/store/app-store';
-import { sendMessage, loadConversationHistory, createNewThread, initTutor, type ParsedExercise } from '../../src/services/tutor-agent';
+import { sendMessage, loadConversationHistory, createNewThread, initTutor } from '../../src/services/tutor-agent';
 import type { CurriculumStatus } from '../../src/services/curriculum-context';
 import { listThreads, deleteThread, type ThreadSummary } from '../../src/db/checkpointer';
-import ExerciseCard from '../../src/components/ExerciseCard';
 
 const SENSEI_USER = {
   _id: 2,
@@ -177,11 +176,9 @@ export default function ChatScreen() {
         setCurrentThreadId(threadId);
       }
 
-      const { text: response, cardsCreated, progressUpdates, exercises, curriculumStatus: status } = await sendMessage(threadId, userMessage.text);
+      const { text: response, cardsCreated, progressUpdates, curriculumStatus: status } = await sendMessage(threadId, userMessage.text);
       setCurriculumStatus(status);
-      console.log('📱 ChatScreen received response:', { length: response.length, exercises: exercises.length, cards: cardsCreated, curriculumStatus: status });
-
-
+      console.log('📱 ChatScreen received response:', { length: response.length, cards: cardsCreated, curriculumStatus: status });
 
       const aiMessage: IMessage = {
         _id: `ai-${Date.now()}`,
@@ -215,21 +212,6 @@ export default function ChatScreen() {
         setTimeout(() => {
           setMessages((prev) => GiftedChat.append(prev, [progressNotif]));
         }, cardsCreated > 0 ? 1000 : 500);
-      }
-
-      // Display exercise cards inline as interactive components
-      if (exercises.length > 0) {
-        const exerciseMsg: IMessage = {
-          _id: `exercise-${Date.now()}`,
-          text: '__EXERCISES__',
-          createdAt: new Date(),
-          user: SENSEI_USER,
-          // @ts-ignore — custom field to pass exercise data
-          exercises: exercises,
-        };
-        setTimeout(() => {
-          setMessages((prev) => GiftedChat.append(prev, [exerciseMsg]));
-        }, cardsCreated > 0 || progressUpdates > 0 ? 1500 : 500);
       }
     } catch (error) {
       const errText = error instanceof Error ? error.message : 'Something went wrong.';
@@ -327,32 +309,6 @@ export default function ChatScreen() {
             const { currentMessage } = props;
             if (!currentMessage?.text) return null;
 
-            // Render interactive exercises instead of markdown
-            if (currentMessage.text === '__EXERCISES__' && (currentMessage as any).exercises) {
-              const exercises = (currentMessage as any).exercises as ParsedExercise[];
-              return (
-                <View style={{ paddingHorizontal: 6, paddingVertical: 5 }}>
-                  {exercises.map((ex, i) => (
-                    <ExerciseCard
-                      key={`ex-${i}`}
-                      exercise={ex}
-                      onAnswer={(answer) => {
-                        // Prefix with [ANSWER] so the agent knows this is an exercise response
-                        const answerMsg: IMessage[] = [{
-                          _id: `answer-${Date.now()}-${i}`,
-                          text: `[ANSWER] ${answer}`,
-                          createdAt: new Date(),
-                          user: { _id: 1 },
-                        }];
-                        onSend(answerMsg);
-                      }}
-                    />
-                  ))}
-                </View>
-              );
-            }
-
-            // Strip [ANSWER] prefix from user messages (it's an internal signal for the AI)
             let displayText = currentMessage.text;
             let thinkText = null;
             
@@ -361,10 +317,6 @@ export default function ChatScreen() {
             if (thinkMatch) {
               thinkText = thinkMatch[1];
               displayText = displayText.replace(thinkRegex, '').trim();
-            }
-
-            if (displayText.startsWith('[ANSWER] ')) {
-              displayText = displayText.replace('[ANSWER] ', '');
             }
 
             return (

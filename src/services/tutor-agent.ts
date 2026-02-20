@@ -79,35 +79,20 @@ Most responses should have ZERO flashcard blocks. When you do create one:
 [FLASHCARD]{"front":"日本語 text","back":"English meaning (reading) [Pitch: HLL]","type":"vocab"}[/FLASHCARD]
 Valid types: vocab, grammar, kanji.
 
-## Exercise Generation (Quiz Mode)
-When the student asks to practice or says "quiz me", generate ONE exercise ONLY about items the student has already been exposed to (📙 STILL LEARNING or 📗 ALMOST MASTERED in the curriculum). Do NOT quiz on 📕 NOT YET LEARNED items — teach those first. If ALL items are unlearned, tell the student: "Let's learn something first before quizzing! Want to start with [item]?"
+## Quizzing & Practice
+When the student asks to practice or says "quiz me", ask questions NATURALLY in your message text. For example: "What particle would you use in this sentence: 田中さん___学生です？" — just ask it directly, no special formatting needed.
+- Quiz ONLY items the student has been exposed to (📙 STILL LEARNING or 📗 ALMOST MASTERED)
+- Do NOT quiz 📕 NOT YET LEARNED items — teach those first
+- ONE question at a time, then WAIT for the student's reply
+- Be creative and varied — use fill-in-the-blank, translation, or multiple choice, all within your message text
+- NEVER repeat the same question twice in a conversation
 
-Example fill-blank exercise (for particle は):
-[EXERCISE]{"type":"fill-blank","question":"私___学生です。","hint":"topic marker","answer":"は","item":"は"}[/EXERCISE]
-
-Example fill-blank exercise (for vocab 飲む):
-[EXERCISE]{"type":"fill-blank","question":"毎日コーヒー___飲みます。","hint":"object marker","answer":"を","item":"を"}[/EXERCISE]
-
-Valid types: fill-blank, translate, choose.
-- "item" must match a curriculum title for progress tracking
-- Give ONE exercise at a time, then WAIT
-- NEVER give the same exercise question twice in a conversation
-- NEVER reuse the same sentence from a previous exercise, even to test a different blank. Each exercise MUST use a completely different sentence.
-
-### ⚠️ Fill-in-the-Blank — THE GOLDEN RULE
-**The ___ MUST be where the answer goes.** Replacing ___ with the answer MUST produce a correct sentence.
-- If testing a PARTICLE (は, を, が, に, で, etc.), the particle itself must be ___.
-- The answer word must NOT appear anywhere else in the question sentence.
-- Before generating, mentally check: sentence.replace("___", answer) → is that correct Japanese? If not, redo.
-
-## Handling Exercise Answers — CRITICAL
-When the student responds to your exercise (either with an "[ANSWER]" prefix OR by typing directly in chat right after your exercise), evaluate their answer:
-1. **Re-read your exercise first**: Check the question, hint, and answer fields from the exercise you gave. Evaluate ONLY against the concept you were testing.
-2. **Be lenient**: Accept answers that are semantically correct even if worded differently. Accept alternative readings, synonyms, conjugation forms, or equivalent expressions.
-3. Only mark as incorrect if the answer shows genuine misunderstanding of the tested concept.
-4. Give brief, encouraging feedback (1-2 sentences max).
-5. ALWAYS record the result with a [PROGRESS] block — even for answers typed directly (not via [ANSWER]).
-6. **NEVER repeat the same exercise or item.** Next exercise MUST use a DIFFERENT curriculum item.
+## Handling Answers
+When the student answers your question, evaluate their response:
+1. **Be lenient**: Accept semantically correct answers even if worded differently.
+2. Only mark as incorrect if the answer shows genuine misunderstanding.
+3. Give brief, encouraging feedback (1-2 sentences max).
+4. ALWAYS record the result with a [PROGRESS] block.
 
 ## Progress Tracking
 When the student answers correctly or acceptably, record:
@@ -116,7 +101,7 @@ When they answer truly incorrectly (shows misunderstanding):
 [PROGRESS]{"item":"は","correct":false}[/PROGRESS]
 The "item" value must be ONLY the title as listed in the curriculum (e.g. "は", "食べる", "日"). Do NOT append the meaning or description — use only the short title before any "—" dash.
 
-⚠️ IMPORTANT: Use ONLY straight double quotes (") in [PROGRESS], [FLASHCARD], and [EXERCISE] JSON blocks. Never use curly/smart quotes. ALWAYS include the closing [/PROGRESS] tag.
+⚠️ IMPORTANT: Use ONLY straight double quotes (") in [PROGRESS] and [FLASHCARD] JSON blocks. Never use curly/smart quotes. ALWAYS include the closing [/PROGRESS] tag.
 
 When recording a correct answer, include brief encouragement in your response (e.g., "Nice! 🎉" or "Perfect! ✨").
 
@@ -230,14 +215,7 @@ interface ParsedProgress {
   correct: boolean;
 }
 
-export interface ParsedExercise {
-  type: 'fill-blank' | 'translate' | 'choose';
-  question: string;
-  hint?: string;
-  options?: string[];
-  answer: string;
-  item: string;
-}
+
 
 function parseFlashcards(response: string): { cleanText: string; cards: ParsedFlashcard[] } {
   const { cleanText, items } = parseTaggedBlocks(response, 'FLASHCARD');
@@ -266,25 +244,7 @@ function parseProgressMarkers(response: string): { cleanText: string; updates: P
   return { cleanText, updates };
 }
 
-function parseExercises(response: string): { cleanText: string; exercises: ParsedExercise[] } {
-  const { cleanText, items } = parseTaggedBlocks(response, 'EXERCISE');
-  const exercises: ParsedExercise[] = [];
-  const validTypes = ['fill-blank', 'translate', 'choose'];
 
-  for (const parsed of items) {
-    if (parsed.question && parsed.answer && validTypes.includes(parsed.type)) {
-      exercises.push({
-        type: parsed.type,
-        question: parsed.question,
-        hint: parsed.hint,
-        options: parsed.options,
-        answer: parsed.answer,
-        item: parsed.item || '',
-      });
-    }
-  }
-  return { cleanText, exercises };
-}
 
 // ─── Legacy: strip any [THINK] blocks if the AI still generates them ───
 
@@ -356,7 +316,6 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   text: string;
   cardsCreated: number;
   progressUpdates: number;
-  exercises: ParsedExercise[];
   curriculumStatus: CurriculumStatus;
 }> {
   const client = getGroqClient();
@@ -460,10 +419,9 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   // Parse embedded blocks — always chain cleaned text forward (no || fallback)
   const { cleanText: afterFlashcards, cards } = parseFlashcards(afterThinking);
   const { cleanText: afterProgress, updates } = parseProgressMarkers(afterFlashcards);
-  const { cleanText: afterExercises, exercises } = parseExercises(afterProgress);
-  const response = afterExercises || afterThinking;
+  const response = afterProgress || afterThinking;
 
-  console.log(`✂️ Parsed: ${rawResponse.length}→${response.length} chars, ${cards.length} cards, ${exercises.length} exercises, ${updates.length} progress`);
+  console.log(`✂️ Parsed: ${rawResponse.length}→${response.length} chars, ${cards.length} cards, ${updates.length} progress`);
 
   // Auto-create flashcards
   let cardsCreated = 0;
@@ -568,7 +526,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     console.warn('Failed to save conversation checkpoint:', err);
   }
 
-  return { text: response, cardsCreated, progressUpdates, exercises, curriculumStatus };
+  return { text: response, cardsCreated, progressUpdates, curriculumStatus };
 }
 
 /**
