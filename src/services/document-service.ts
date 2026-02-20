@@ -108,13 +108,20 @@ export async function processDocument(
 ): Promise<number> {
   const client = getGroqClient();
   
+  // Models chosen for their excellent Japanese capabilities
+  // We rotate between them to avoid hitting daily request limits on a single model
+  const DOC_MODELS = [
+    'llama-3.3-70b-versatile',
+    'qwen/qwen3-32b',
+    'moonshotai/kimi-k2-instruct',
+  ];
+
   // Save original model to restore later
   const originalModel = useAppStore.getState().currentModel;
-  const docModel = 'llama-3.3-70b-versatile';
-  client.setModel(docModel);
   
-  const modelConfig = MODEL_RATES[docModel as keyof typeof MODEL_RATES];
-  const chunkSize = modelConfig ? modelConfig.maxChunkSize : 2000;
+  // Use a safe chunk size for all our document models 
+  // (Both Qwen3 and Llama 3.1 have max 4,000, so we use a conservative 3500)
+  const chunkSize = 3500;
 
   try {
     const db = getDatabase();
@@ -174,8 +181,10 @@ export async function processDocument(
 
       const prompt = buildExtractionPrompt(textChunks[i], i, textChunks.length);
       
-      // Debug: Log progress
-      console.log(`📄 Processing chunk ${i + 1}/${textChunks.length} (${textChunks[i].length} chars)...`);
+      // Rotate the model for this chunk to distribute API load
+      const currentDocModel = DOC_MODELS[i % DOC_MODELS.length];
+      client.setModel(currentDocModel);
+      console.log(`📄 Processing chunk ${i + 1}/${textChunks.length} using ${currentDocModel} (${textChunks[i].length} chars)...`);
 
       const result = await client.generateJSON<ExtractionResult>(
         prompt, 
