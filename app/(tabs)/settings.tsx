@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
   import { useFocusEffect } from 'expo-router';
   import { useAppStore, type ModelType } from '../../src/store/app-store';
   import { MODEL_RATES } from '../../src/services/gemini-client';
+import { deleteAllCurriculum } from '../../src/services/curriculum-service';
+
   import { processDocument, getUploadedDocuments, deleteDocument } from '../../src/services/document-service';
   import { resetProgress } from '../../src/services/progress-service';
 
@@ -180,6 +182,34 @@ import { SafeAreaView } from 'react-native-safe-area-context';
     );
   };
 
+
+  const handleDeleteAllCurriculum = () => {
+    Alert.alert(
+      '💣 Delete All Curriculum',
+      'Are you sure? This will delete EVERYTHING: all lessons, vocabulary, flashcards, documents, and progress. The app will be reset to a fresh state.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Everything',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsProcessing(true);
+              await deleteAllCurriculum();
+              Alert.alert('Reset Complete', 'All curriculum data has been deleted. Please restart the app to re-seed the starter content.');
+            } catch (error) {
+              console.error('Failed to delete curriculum:', error);
+              Alert.alert('Error', 'Failed to delete curriculum.');
+            } finally {
+              setIsProcessing(false);
+              loadDocuments(); // Refresh (should be empty)
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleDonation = () => {
     Alert.alert(
       '❤️ Support Development',
@@ -333,7 +363,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🚫 Danger Zone</Text>
           <TouchableOpacity style={styles.dangerButton} onPress={handleResetProgress}>
-            <Text style={styles.dangerButtonText}>Reset Progress</Text>
+            <Text style={styles.dangerButtonText}>Reset Progress Only</Text>
+          </TouchableOpacity>
+          
+          <View style={{ height: 12 }} />
+
+          <TouchableOpacity style={styles.dangerButton} onPress={handleDeleteAllCurriculum}>
+            <Text style={styles.dangerButtonText}>Delete All Curriculum</Text>
           </TouchableOpacity>
         </View>
 
@@ -498,10 +534,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     gap: 8,
   },
-  docList: {
-    marginTop: 20,
-    gap: 10,
-  },
+
   subHeader: {
     color: '#888',
     fontSize: 12,

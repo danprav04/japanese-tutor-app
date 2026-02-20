@@ -271,7 +271,7 @@ export async function processDocument(
         back = `${item.meaning}${item.example ? '\n例: ' + item.example : ''}`;
       }
 
-      await createFlashcard(front, back, item.type, node.nodeId);
+      // await createFlashcard(front, back, item.type, node.nodeId);
       await initializeProgress(node.nodeId, true);
 
       importedCount++;

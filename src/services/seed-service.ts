@@ -63,7 +63,7 @@ export async function seedStarterCurriculum(): Promise<void> {
           back = `${item.content.meaning}\n${item.content.example ?? ''}`;
         }
 
-        await createFlashcard(front, back, item.type, node.nodeId);
+        // await createFlashcard(front, back, item.type, node.nodeId);
 
         // 3. Initialize BKT progress (unlocked for N5 starters)
         await initializeProgress(node.nodeId, true);
