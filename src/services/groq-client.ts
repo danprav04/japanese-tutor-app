@@ -75,6 +75,8 @@ export class GroqClient {
     
     if (apiKey) {
       headers['Authorization'] = `Bearer ${apiKey}`;
+    } else {
+      headers['x-app-secret'] = process.env.EXPO_PUBLIC_APP_SECRET || '';
     }
 
     let attempt = 0;
@@ -174,6 +176,8 @@ export class GroqClient {
     
     if (apiKey) {
       headers['Authorization'] = `Bearer ${apiKey}`;
+    } else {
+      headers['x-app-secret'] = process.env.EXPO_PUBLIC_APP_SECRET || '';
     }
 
     const response = await fetch(endpoint, {

@@ -41,3 +41,4 @@ yarn-error.*
 /android
 *.log
 debug_keystore_base64.txt
+.env

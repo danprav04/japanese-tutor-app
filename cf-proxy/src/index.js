@@ -15,6 +15,15 @@ export default {
       return new Response("Method Not Allowed", { status: 405 });
     }
 
+    // Authenticate the request
+    const appSecret = request.headers.get("x-app-secret");
+    if (!appSecret || appSecret !== env.APP_SECRET) {
+      return new Response("Unauthorized", { 
+        status: 401,
+        headers: { "Access-Control-Allow-Origin": "*" } 
+      });
+    }
+
     try {
       // The body comes from your app already formatted for the OpenAI spec
       // e.g. { model: "qwen-3-32b", messages: [...] }
