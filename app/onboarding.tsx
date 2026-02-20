@@ -60,52 +60,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
       </View>
     </Animated.View>,
 
-    // Slide 1 — API Key Setup
-    <Animated.View key="apikey" entering={FadeInDown.duration(600)} style={styles.slide}>
-      <Text style={styles.stepEmoji}>🔑</Text>
-      <Text style={styles.stepTitle}>Connect to Gemini</Text>
-      <Text style={styles.stepText}>
-        This app uses Google's Gemini AI for tutoring. You'll need a free API key from Google AI Studio.
-      </Text>
 
-      <TouchableOpacity
-        style={styles.linkButton}
-        onPress={() => Linking.openURL('https://aistudio.google.com/apikey')}
-      >
-        <Text style={styles.linkButtonText}>🌐 Get a Free API Key</Text>
-      </TouchableOpacity>
-
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.inputRow}>
-          <TextInput
-            style={styles.apiInput}
-            placeholder="Paste your API key here"
-            placeholderTextColor="#666"
-            value={apiKey}
-            onChangeText={setApiKey}
-            secureTextEntry
-            autoCapitalize="none"
-          />
-          <TouchableOpacity
-            style={[styles.addButton, !apiKey.trim() && styles.addButtonDisabled]}
-            onPress={handleAddKey}
-            disabled={!apiKey.trim()}
-          >
-            <Text style={styles.addButtonText}>Add</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-
-      {isGeminiReady && (
-        <Animated.View entering={FadeIn.duration(400)} style={styles.successBadge}>
-          <Text style={styles.successText}>✅ API key added successfully!</Text>
-        </Animated.View>
-      )}
-
-      <Text style={styles.skipHint}>
-        You can also add this later in Settings
-      </Text>
-    </Animated.View>,
 
     // Slide 2 — Ready
     <Animated.View key="ready" entering={FadeInUp.duration(600)} style={styles.slide}>
@@ -152,11 +107,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
               <Text style={styles.backBtnText}>Back</Text>
             </TouchableOpacity>
           )}
-          {step === 1 && !isGeminiReady && (
-            <TouchableOpacity style={styles.skipBtn} onPress={() => setStep(step + 1)}>
-              <Text style={styles.skipBtnText}>Skip for now</Text>
-            </TouchableOpacity>
-          )}
+
           <TouchableOpacity
             style={styles.nextBtn}
             onPress={isLastSlide ? handleFinish : () => setStep(step + 1)}

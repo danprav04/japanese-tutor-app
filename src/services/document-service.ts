@@ -10,7 +10,7 @@
 
 import { File } from 'expo-file-system/next';
 import { getDatabase } from '../db/database';
-import { getGeminiClient, MODEL_RATES } from './gemini-client';
+import { getGroqClient, MODEL_RATES } from './groq-client';
 import { addNode } from './curriculum-service';
 import { createFlashcard } from './card-service';
 import { initializeProgress } from './progress-service';
@@ -105,7 +105,7 @@ export async function processDocument(
   fileType: string,
   options?: ProcessOptions
 ): Promise<number> {
-  const client = getGeminiClient();
+  const client = getGroqClient();
   
   // Ensure we use the user's selected model
   const currentModel = useAppStore.getState().currentModel;

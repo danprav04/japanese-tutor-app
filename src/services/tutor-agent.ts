@@ -6,7 +6,7 @@
  * history using the SQLite checkpointer.
  */
 
-import { initGeminiClient, getGeminiClient, type ModelType } from './gemini-client';
+import { initGroqClient, getGroqClient, type ModelType } from './groq-client';
 import { saveCheckpoint, getLatestCheckpoint, listCheckpoints, setThreadTitle } from '../db/checkpointer';
 import { createFlashcard } from './card-service';
 import { buildCurriculumContext, getReviewContext } from './curriculum-context';
@@ -310,7 +310,7 @@ async function summarizeIfNeeded(messages: ConversationMessage[]): Promise<Conve
     .join('\n');
 
   try {
-    const client = getGeminiClient();
+    const client = getGroqClient();
     const summaryPrompt = `Summarize this Japanese tutoring conversation in 3-5 bullet points. Focus on: what was taught, what the student struggled with, and what was mastered. Be concise.\n\n${textToSummarize}`;
     const summary = await client.generate(summaryPrompt);
 
@@ -331,8 +331,8 @@ async function summarizeIfNeeded(messages: ConversationMessage[]): Promise<Conve
 /**
  * Initialize the tutor with API keys and model selection.
  */
-export function initTutor(apiKeys: string[], model: ModelType = 'gemini-3-flash-preview'): void {
-  initGeminiClient(apiKeys, model);
+export function initTutor(apiKeys: string[], model: ModelType = 'qwen/qwen3-32b'): void {
+  initGroqClient(model);
 }
 
 /**
@@ -353,7 +353,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   progressUpdates: number;
   exercises: ParsedExercise[];
 }> {
-  const client = getGeminiClient();
+  const client = getGroqClient();
 
   // Get or initialize conversation history
   let messages = conversationCache.get(threadId);

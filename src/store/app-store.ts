@@ -7,10 +7,10 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 
 export type ModelType = 
-  | 'gemini-3-flash-preview' 
-  | 'gemini-3-pro-preview' 
-  | 'gemini-2.5-flash' 
-  | 'gemma-3-27b-it';
+  | 'qwen/qwen3-32b' 
+  | 'llama-3.3-70b-versatile' 
+  | 'llama-3.1-8b-instant' 
+  | 'moonshotai/kimi-k2-instruct';
 
 interface AppState {
   // API Keys
@@ -54,8 +54,8 @@ const DAILY_GOAL_STORAGE = 'daily_goal';
 export const useAppStore = create<AppState>((set, get) => ({
   // Initial state
   apiKeys: [],
-  currentModel: 'gemini-3-flash-preview',
-  isGeminiReady: false,
+  currentModel: 'qwen/qwen3-32b',
+  isGeminiReady: true,
   isDatabaseReady: false,
   isLoading: false,
   currentThreadId: 'default',
@@ -66,7 +66,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Actions
   setApiKeys: (keys) => {
-    set({ apiKeys: keys, isGeminiReady: keys.length > 0 });
+    set({ apiKeys: keys, isGeminiReady: true });
   },
 
   addApiKey: (key) => {
@@ -86,7 +86,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updated = apiKeys.filter((_, i) => i !== index);
     set({
       apiKeys: updated,
-      isGeminiReady: updated.length > 0,
+      isGeminiReady: true,
     });
     persistApiKeys();
   },
@@ -118,19 +118,19 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       const apiKeys = storedKeys ? JSON.parse(storedKeys) : [];
       const dailyGoal = storedGoal ? parseInt(storedGoal, 10) : 10;
-      let currentModel = (storedModel as ModelType) || 'gemini-3-flash-preview';
+      let currentModel = (storedModel as ModelType) || 'qwen/qwen3-32b';
       
       // Validate model name (in case old invalid name is stored)
-      const validModels: ModelType[] = ['gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.5-flash', 'gemma-3-27b-it'];
+      const validModels: ModelType[] = ['qwen/qwen3-32b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'moonshotai/kimi-k2-instruct'];
       if (!validModels.includes(currentModel)) {
-        currentModel = 'gemini-3-flash-preview';
+        currentModel = 'qwen/qwen3-32b';
       }
 
       set({
         apiKeys,
         currentModel,
         dailyGoal: isNaN(dailyGoal) ? 10 : dailyGoal,
-        isGeminiReady: apiKeys.length > 0,
+        isGeminiReady: true,
       });
     } catch (error) {
       console.error('Failed to load from storage:', error);

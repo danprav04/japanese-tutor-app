@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
   import * as DocumentPicker from 'expo-document-picker';
   import { useFocusEffect } from 'expo-router';
   import { useAppStore, type ModelType } from '../../src/store/app-store';
-  import { MODEL_RATES } from '../../src/services/gemini-client';
+  import { MODEL_RATES } from '../../src/services/groq-client';
 import { deleteAllCurriculum } from '../../src/services/curriculum-service';
 import { seedStarterCurriculum } from '../../src/services/seed-service';
 
@@ -103,7 +103,7 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
           const file = result.assets[0];
   
           if (!useAppStore.getState().isGeminiReady) {
-            Alert.alert('API Key Required', 'Please add a Gemini API key first to process documents.');
+            Alert.alert('API Key Required', 'Please add an API key first to process documents.');
             return;
           }
   
@@ -253,7 +253,7 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
       <ScrollView contentContainerStyle={styles.content}>
         {/* API Keys Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔑 Gemini API Keys</Text>
+          <Text style={styles.sectionTitle}>🔑 API Keys</Text>
           <Text style={styles.sectionSubtitle}>
             Add multiple keys for automatic rotation when rate limits are hit
           </Text>
@@ -286,7 +286,7 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
 
           {apiKeys.length === 0 && (
             <Text style={styles.noKeysText}>
-              No API keys added. Get a free key from Google AI Studio.
+              No API keys added. Get a key from your provider (e.g. Groq).
             </Text>
           )}
         </View>
