@@ -309,7 +309,14 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
                   onPress={() => handleModelChange(model)}
                 >
                   <View style={styles.modelHeader}>
-                    <Text style={styles.modelName}>{model}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={styles.modelName}>{model}</Text>
+                      {model === 'qwen/qwen3-32b' && (
+                        <View style={styles.recommendedBadge}>
+                          <Text style={styles.recommendedText}>Recommended</Text>
+                        </View>
+                      )}
+                    </View>
                     {isSelected && <View style={styles.selectedBadge} />}
                   </View>
                   {apiKeys.length > 0 && (
@@ -426,6 +433,7 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
         </View>
 
         {/* Support */}
+        {/* Support section hidden for now
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>❤️ Support</Text>
           <Text style={styles.sectionSubtitle}>
@@ -436,6 +444,7 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
             <Text style={styles.donateButtonText}>Make a Donation</Text>
           </TouchableOpacity>
         </View>
+        */}
 
         {/* About */}
         <View style={styles.section}>
@@ -705,5 +714,19 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 14,
     fontWeight: '500',
+  },
+  recommendedBadge: {
+    backgroundColor: '#064e3b',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#059669',
+  },
+  recommendedText: {
+    color: '#34d399',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
 });
