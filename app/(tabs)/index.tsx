@@ -17,8 +17,10 @@ import { GiftedChat, IMessage, Bubble, InputToolbar, Composer, Send, SystemMessa
 import Markdown from 'react-native-markdown-display';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { useRouter } from 'expo-router';
 import { useAppStore } from '../../src/store/app-store';
 import { sendMessage, loadConversationHistory, createNewThread, initTutor, type ParsedExercise } from '../../src/services/tutor-agent';
+import type { CurriculumStatus } from '../../src/services/curriculum-context';
 import { listThreads, deleteThread, type ThreadSummary } from '../../src/db/checkpointer';
 import ExerciseCard from '../../src/components/ExerciseCard';
 
@@ -57,6 +59,8 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
+  const [curriculumStatus, setCurriculumStatus] = useState<CurriculumStatus | null>(null);
+  const router = useRouter();
 
   const initialized = useRef(false);
   const tabBarHeight = useBottomTabBarHeight();
@@ -173,8 +177,9 @@ export default function ChatScreen() {
         setCurrentThreadId(threadId);
       }
 
-      const { text: response, cardsCreated, progressUpdates, exercises } = await sendMessage(threadId, userMessage.text);
-      console.log('📱 ChatScreen received response:', { length: response.length, exercises: exercises.length, cards: cardsCreated });
+      const { text: response, cardsCreated, progressUpdates, exercises, curriculumStatus: status } = await sendMessage(threadId, userMessage.text);
+      setCurriculumStatus(status);
+      console.log('📱 ChatScreen received response:', { length: response.length, exercises: exercises.length, cards: cardsCreated, curriculumStatus: status });
 
 
 
@@ -263,6 +268,25 @@ export default function ChatScreen() {
           <Text style={styles.headerBtnText}>✏️ New</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Curriculum status banner */}
+      {curriculumStatus && curriculumStatus !== 'has_content' && (
+        <TouchableOpacity
+          style={[
+            styles.curriculumBanner,
+            curriculumStatus === 'all_mastered' ? styles.bannerMastered : styles.bannerEmpty,
+          ]}
+          onPress={() => router.push('/(tabs)/curriculum')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.bannerText}>
+            {curriculumStatus === 'empty'
+              ? '📚 No curriculum yet — tap to add items'
+              : '🎉 All mastered! Tap to add more curriculum'}
+          </Text>
+          <Text style={styles.bannerArrow}>→</Text>
+        </TouchableOpacity>
+      )}
 
       <KeyboardAvoidingView
         style={styles.chatContainer}
@@ -740,6 +764,38 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     paddingTop: 12,
+  },
+  curriculumBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 12,
+    marginTop: 8,
+    borderRadius: 10,
+  },
+  bannerEmpty: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+  },
+  bannerMastered: {
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+  },
+  bannerText: {
+    color: '#E0E7FF',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  bannerArrow: {
+    color: '#a5b4fc',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
   thinkContainer: {
     marginVertical: 6,

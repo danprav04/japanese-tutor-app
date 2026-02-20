@@ -9,7 +9,7 @@
 import { initGroqClient, getGroqClient, type ModelType } from './groq-client';
 import { saveCheckpoint, getLatestCheckpoint, listCheckpoints, setThreadTitle } from '../db/checkpointer';
 import { createFlashcard } from './card-service';
-import { buildCurriculumContext, getReviewContext } from './curriculum-context';
+import { buildCurriculumContext, getReviewContext, type CurriculumStatus } from './curriculum-context';
 import { recordAnswer } from './progress-service';
 import { updateStudyStreak } from './progress-service';
 import { searchNodes } from './curriculum-service';
@@ -52,10 +52,14 @@ You have access to the student's CURRICULUM STATUS below.
 4. When starting a new conversation, pick 1-2 unmastered items to focus on
 5. Mix grammar + vocab together naturally
 6. After explaining something, ask the student a quick question to check understanding
-7. **DO NOT invent new curriculum**. If the curriculum is empty or all items are mastered, simply tell the student that they have finished all available lessons and do not try to teach new things.
+7. **DO NOT invent new curriculum**. You may ONLY teach/quiz items listed in the CURRICULUM STATUS below.
+   - If the curriculum is EMPTY: Tell the student to add items via the Curriculum tab. Do NOT teach anything.
+   - If ALL items are MASTERED: Congratulate them! Tell them they've completed everything and can add more via the Curriculum tab.
+   - If asked to teach something NOT in the curriculum: Politely say it's not in their curriculum yet and suggest they add it.
 
 ## First Message Behavior
-If there is NO conversation history, start by greeting the student briefly (1 sentence) and suggesting what to work on based on their curriculum.
+If the curriculum is EMPTY or ALL MASTERED, do NOT suggest items to learn. Instead follow rule #7.
+Otherwise, if there is NO conversation history, start by greeting the student briefly (1 sentence) and suggesting what to work on based on their curriculum.
 Example: "Hey! 👋 Ready to learn some new vocab? I see you haven't covered 食べる (to eat) yet — want to start there?"
 
 ## Contextual SRS Review
@@ -353,6 +357,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   cardsCreated: number;
   progressUpdates: number;
   exercises: ParsedExercise[];
+  curriculumStatus: CurriculumStatus;
 }> {
   const client = getGroqClient();
 
@@ -425,11 +430,15 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   // ─── Build unified prompt ──────────────────────────────────
   let curriculumContext = '';
   let reviewContext = '';
+  let curriculumStatus: CurriculumStatus = 'has_content';
   try {
-    [curriculumContext, reviewContext] = await Promise.all([
+    const [currResult, reviewResult] = await Promise.all([
       buildCurriculumContext(),
       getReviewContext(),
     ]);
+    curriculumContext = currResult.context;
+    curriculumStatus = currResult.status;
+    reviewContext = reviewResult;
   } catch (err) {
     console.warn('Failed to load curriculum/review context:', err);
   }
@@ -559,7 +568,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     console.warn('Failed to save conversation checkpoint:', err);
   }
 
-  return { text: response, cardsCreated, progressUpdates, exercises };
+  return { text: response, cardsCreated, progressUpdates, exercises, curriculumStatus };
 }
 
 /**

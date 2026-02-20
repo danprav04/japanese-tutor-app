@@ -25,7 +25,9 @@ interface CurriculumItem {
  * Build a curriculum context string for the AI tutor.
  * Groups items by mastery level and type, prioritizing unmastered items.
  */
-export async function buildCurriculumContext(): Promise<string> {
+export type CurriculumStatus = 'empty' | 'all_mastered' | 'has_content';
+
+export async function buildCurriculumContext(): Promise<{ context: string; status: CurriculumStatus }> {
   const db = getDatabase();
 
   // Join curriculum_nodes with user_progress to get mastery data
@@ -39,7 +41,10 @@ export async function buildCurriculumContext(): Promise<string> {
   );
 
   if (!result.rows || result.rows.length === 0) {
-    return 'The student has no curriculum items yet. Teach general beginner Japanese.';
+    return {
+      context: '⚠️ CURRICULUM IS EMPTY. The student has NO curriculum items. Do NOT teach anything. Tell them to add curriculum items via the Curriculum tab before starting lessons. Do NOT invent topics or suggest learning anything.',
+      status: 'empty',
+    };
   }
 
   const items: CurriculumItem[] = (result.rows as any[]).map((row) => {
@@ -65,6 +70,14 @@ export async function buildCurriculumContext(): Promise<string> {
   const learning = items.filter((i) => i.masteryScore >= 0.3 && i.masteryScore < 0.7);
   const familiar = items.filter((i) => i.masteryScore >= 0.7 && i.masteryScore < 0.95);
   const mastered = items.filter((i) => i.masteryScore >= 0.95);
+
+  // Detect all-mastered state
+  if (mastered.length === items.length) {
+    return {
+      context: `=== STUDENT CURRICULUM STATUS ===\nTotal items: ${items.length} | ALL MASTERED ✅\n\n🎉 ALL ${items.length} items are mastered! Congratulate the student and tell them they have completed all available lessons. Suggest they add more curriculum via the Curriculum tab if they want to keep learning. Do NOT invent new topics.`,
+      status: 'all_mastered',
+    };
+  }
 
   const lines: string[] = [];
   lines.push(`=== STUDENT CURRICULUM STATUS ===`);
@@ -118,7 +131,7 @@ export async function buildCurriculumContext(): Promise<string> {
     lines.push(`✅ MASTERED (${mastered.length} items — no need to teach these)`);
   }
 
-  return lines.join('\n');
+  return { context: lines.join('\n'), status: 'has_content' };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
