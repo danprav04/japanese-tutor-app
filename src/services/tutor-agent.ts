@@ -10,8 +10,7 @@ import { initGroqClient, getGroqClient, type ModelType } from './groq-client';
 import { saveCheckpoint, getLatestCheckpoint, listCheckpoints, setThreadTitle } from '../db/checkpointer';
 import { createFlashcard } from './card-service';
 import { buildCurriculumContext, getReviewContext, type CurriculumStatus } from './curriculum-context';
-import { recordAnswer } from './progress-service';
-import { updateStudyStreak } from './progress-service';
+import { recordAnswer, updateStudyStreak } from './progress-service';
 import { searchNodes } from './curriculum-service';
 import { lookupWord, formatForTutor } from './jisho-service';
 import {
@@ -22,237 +21,19 @@ import {
 } from './document-learning-service';
 import { v4 as uuidv4 } from 'uuid';
 
-// ─── Types ───────────────────────────────────────────────────
-
-interface ConversationMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-}
-
-interface ConversationState {
-  messages: ConversationMessage[];
-}
-
-// ─── System Prompt ───────────────────────────────────────────
-
-const SYSTEM_PROMPT = `You are a friendly Japanese language tutor named Sensei. You chat with students on a MOBILE app.
-
-## CRITICAL — Response Length
-- Keep responses to **2-4 sentences**. This is a phone screen, not a textbook.
-- Only expand to 5+ sentences if the student specifically asks for a detailed explanation.
-- Use bullet points for lists, never paragraphs.
-- ONE concept per message. Don't teach 3 things at once.
-
-## Teaching Strategy (Curriculum-Driven)
-You have access to the student's CURRICULUM STATUS below.
-1. **Prioritize unmastered items** (📕 NOT YET LEARNED) — teach these first
-2. **Review weak items** (📙 STILL LEARNING) — weave into conversation naturally
-3. **Skip mastered items** (✅) — don't re-teach unless asked
-4. When starting a new conversation, pick 1-2 unmastered items to focus on
-5. Mix grammar + vocab together naturally
-6. After explaining something, ask the student a quick question to check understanding
-7. **DO NOT invent new curriculum**. You may ONLY teach/quiz items listed in the CURRICULUM STATUS below.
-   - If the curriculum is EMPTY: Tell the student to add items via the Curriculum tab. Do NOT teach anything.
-   - If ALL items are MASTERED: Congratulate them! Tell them they've completed everything and can add more via the Curriculum tab.
-   - If asked to teach something NOT in the curriculum: Politely say it's not in their curriculum yet and suggest they add it.
-
-## First Message Behavior
-If the curriculum is EMPTY or ALL MASTERED, do NOT suggest items to learn. Instead follow rule #7.
-Otherwise, if there is NO conversation history, start by greeting the student briefly (1 sentence) and suggesting what to work on based on their curriculum.
-Example: "Hey! 👋 Ready to learn some new vocab? I see you haven't covered 食べる (to eat) yet — want to start there?"
-
-## Contextual SRS Review
-If there is an "ITEMS DUE FOR REVIEW" section below, work at least ONE review item into your response naturally as an example sentence or question. Do NOT create a separate review section.
-
-## Pitch Accent
-When introducing vocabulary, include the pitch accent pattern:
-- Use H (high) / L (low) notation: e.g., はし (箸) — chopsticks — Pitch: HL
-- For compound words: がっこう (学校) — school — Pitch: LHLL
-
-## Flashcard Generation — STRICT RULES
-⚠️ Do NOT generate flashcards by default. ONLY create a flashcard when:
-1. The student explicitly asks ("save this", "make a flashcard", "add to my deck"), OR
-2. You are doing a structured teach-and-quiz session and introduce a genuinely NEW item not already in the curriculum
-
-Most responses should have ZERO flashcard blocks. When you do create one:
-[FLASHCARD]{"front":"日本語 text","back":"English meaning (reading) [Pitch: HLL]","type":"vocab"}[/FLASHCARD]
-Valid types: vocab, grammar, kanji.
-
-## Quizzing & Practice
-When the student asks to practice or says "quiz me", ask questions NATURALLY in your message text. For example: "What particle would you use in this sentence: 田中さん___学生です？" — just ask it directly, no special formatting needed.
-- Quiz ONLY items the student has been exposed to (📙 STILL LEARNING or 📗 ALMOST MASTERED)
-- Do NOT quiz 📕 NOT YET LEARNED items — teach those first
-- ONE question at a time, then WAIT for the student's reply
-- Be creative and varied — use fill-in-the-blank, translation, or multiple choice, all within your message text
-- NEVER repeat the same question twice in a conversation
-
-## Handling Answers
-When the student answers your question, evaluate their response:
-1. **Be lenient**: Accept semantically correct answers even if worded differently.
-2. Only mark as incorrect if the answer shows genuine misunderstanding.
-3. Give brief, encouraging feedback (1-2 sentences max).
-4. ALWAYS record the result with a [PROGRESS] block.
-
-## Progress Tracking
-When the student answers correctly or acceptably, record:
-[PROGRESS]{"item":"は","correct":true}[/PROGRESS]
-When they answer truly incorrectly (shows misunderstanding):
-[PROGRESS]{"item":"は","correct":false}[/PROGRESS]
-The "item" value must be ONLY the title as listed in the curriculum (e.g. "は", "食べる", "日"). Do NOT append the meaning or description — use only the short title before any "—" dash.
-
-⚠️ IMPORTANT: Use ONLY straight double quotes (") in [PROGRESS] and [FLASHCARD] JSON blocks. Never use curly/smart quotes. ALWAYS include the closing [/PROGRESS] tag.
-
-When recording a correct answer, include brief encouragement in your response (e.g., "Nice! 🎉" or "Perfect! ✨").
-
-## Dictionary Results
-If a [DICTIONARY] block is present, use it as ground-truth for definitions.
-
-## Document Focus
-If you see a [DOCUMENT FOCUS] hint, prioritize teaching items from that specific document. Teach them one at a time, waiting for the student's response before moving to the next item.`;
+import { ConversationMessage, ConversationState } from './tutor/types';
+import { SYSTEM_PROMPT } from './tutor/prompt';
+import {
+  normalizeQuotes,
+  parseFlashcards,
+  parseProgressMarkers,
+  stripThinkingBlocks,
+  detectDictionaryQuery
+} from './tutor/parsing';
 
 // ─── In-memory conversation cache ────────────────────────────
 
 const conversationCache = new Map<string, ConversationMessage[]>();
-
-// ─── Response Parsing ────────────────────────────────────────
-
-/**
- * Normalize smart/curly quotes to straight quotes so JSON.parse works.
- * The AI sometimes outputs curly quotes instead of straight quotes which breaks parsing.
- */
-function normalizeQuotes(text: string): string {
-  return text
-    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')  // smart double quotes
-    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");  // smart single quotes
-}
-
-/**
- * Extract a JSON object string with balanced braces, handling nested
- * objects/arrays and braces inside quoted strings.
- * Returns the full balanced JSON substring starting at `start`, or null.
- */
-function extractBalancedJson(text: string, start: number): string | null {
-  if (text[start] !== '{') return null;
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    if (escape) { escape = false; continue; }
-    if (ch === '\\' && inString) { escape = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
-    if (inString) continue;
-    if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) return text.slice(start, i + 1);
-    }
-  }
-  return null; // unbalanced
-}
-
-/**
- * Generic tagged-block parser: finds [TAG]{json}[/TAG] blocks,
- * extracts the JSON using balanced-brace matching, and strips them.
- */
-function parseTaggedBlocks(response: string, tag: string): { cleanText: string; items: any[] } {
-  const items: any[] = [];
-  const openTag = `[${tag}]`;
-  const closeTag = `[/${tag}]`;
-  let result = response;
-  let searchFrom = 0;
-
-  // Collect all block regions first
-  const regions: { start: number; end: number }[] = [];
-  while (true) {
-    const tagStart = result.indexOf(openTag, searchFrom);
-    if (tagStart === -1) break;
-
-    const afterOpen = tagStart + openTag.length;
-    // Skip optional whitespace before {
-    let jsonStart = afterOpen;
-    while (jsonStart < result.length && /\s/.test(result[jsonStart])) jsonStart++;
-
-    const jsonStr = extractBalancedJson(result, jsonStart);
-    if (!jsonStr) { searchFrom = tagStart + 1; continue; }
-
-    try {
-      const parsed = JSON.parse(normalizeQuotes(jsonStr));
-      items.push(parsed);
-    } catch {
-      // Skip malformed JSON
-    }
-
-    // Determine end of block (with or without closing tag)
-    let blockEnd = jsonStart + jsonStr.length;
-    // Skip optional whitespace after JSON
-    while (blockEnd < result.length && /\s/.test(result[blockEnd])) blockEnd++;
-    // Skip closing tag if present
-    if (result.slice(blockEnd, blockEnd + closeTag.length) === closeTag) {
-      blockEnd += closeTag.length;
-    }
-    regions.push({ start: tagStart, end: blockEnd });
-    searchFrom = blockEnd;
-  }
-
-  // Strip regions in reverse to preserve indices
-  for (let i = regions.length - 1; i >= 0; i--) {
-    result = result.slice(0, regions[i].start) + result.slice(regions[i].end);
-  }
-
-  return { cleanText: result.trim(), items };
-}
-
-interface ParsedFlashcard {
-  front: string;
-  back: string;
-  type: 'vocab' | 'grammar' | 'kanji';
-}
-
-interface ParsedProgress {
-  item: string;
-  correct: boolean;
-}
-
-
-
-function parseFlashcards(response: string): { cleanText: string; cards: ParsedFlashcard[] } {
-  const { cleanText, items } = parseTaggedBlocks(response, 'FLASHCARD');
-  const cards: ParsedFlashcard[] = [];
-  const validTypes = ['vocab', 'grammar', 'kanji'];
-
-  for (const parsed of items) {
-    if (parsed.front && parsed.back && parsed.type) {
-      if (validTypes.includes(parsed.type)) {
-        cards.push(parsed as ParsedFlashcard);
-      }
-    }
-  }
-  return { cleanText, cards };
-}
-
-function parseProgressMarkers(response: string): { cleanText: string; updates: ParsedProgress[] } {
-  const { cleanText, items } = parseTaggedBlocks(response, 'PROGRESS');
-  const updates: ParsedProgress[] = [];
-
-  for (const parsed of items) {
-    if (parsed.item && typeof parsed.correct === 'boolean') {
-      updates.push({ item: parsed.item, correct: parsed.correct });
-    }
-  }
-  return { cleanText, updates };
-}
-
-
-
-// ─── Legacy: strip any [THINK] blocks if the AI still generates them ───
-
-function stripThinkingBlocks(response: string): string {
-  return response.replace(/\[THINK\][^]*?\[\/THINK\]/g, '').trim();
-}
-
-// ─── Public API ──────────────────────────────────────────────
 
 // ─── Conversation Summarization ──────────────────────────────
 
@@ -293,6 +74,8 @@ async function summarizeIfNeeded(messages: ConversationMessage[]): Promise<Conve
   }
 }
 
+// ─── Public API ──────────────────────────────────────────────
+
 /**
  * Initialize the tutor with API keys and model selection.
  */
@@ -329,7 +112,6 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   }
 
   // ─── Document focus detection ──────────────────────────────
-  // Instead of a separate "mode", we inject a hint for the AI
   let documentFocusHint = '';
   const docIntent = detectDocumentLearningIntent(userMessage);
   if (docIntent) {
@@ -340,7 +122,6 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
         documentFocusHint = `\n\n[DOCUMENT FOCUS: "${doc.filename}"]\n${docContext}`;
         console.log(`📖 Document focus detected: ${doc.filename}`);
       } else {
-        // List available documents so the AI can suggest them
         const available = await getAvailableDocuments();
         const docNames = available.map((d) => d.filename).join(', ');
         const hint = available.length > 0
@@ -545,29 +326,4 @@ export async function loadConversationHistory(threadId: string): Promise<Convers
     // Database may not be ready yet
   }
   return [];
-}
-
-// ─── Dictionary Query Detection ──────────────────────────────
-
-/**
- * Detect if the user is asking about a specific Japanese word.
- * Returns the query string if detected, null otherwise.
- */
-function detectDictionaryQuery(message: string): string | null {
-  const patterns = [
-    /what (?:does|is|means?) ["「]?([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)["」]?/i,
-    /(?:meaning|definition) of ["「]?([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)["」]?/i,
-    /([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)(?:の意味|って(?:なに|何)|とは|ってどういう意味)/,
-    /look ?up ["「]?([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)["」]?/i,
-    /translate ["「]?([\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\u3400-\u4dbf]+)["」]?/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = message.match(pattern);
-    if (match?.[1]) {
-      return match[1];
-    }
-  }
-
-  return null;
 }
