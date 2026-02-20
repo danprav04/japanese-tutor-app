@@ -71,32 +71,85 @@ export class GroqClient {
       headers['Authorization'] = `Bearer ${apiKey}`;
     }
 
-    try {
-      console.log(`🚀 Sending request to ${apiKey ? 'Groq Direct (BYOK)' : 'Groq via proxy: ' + endpoint}`);
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        signal: signal,
-        body: JSON.stringify({
-          model: this.model,
-          messages: messages,
-          temperature: this.temperature
-        })
-      });
+    let attempt = 0;
+    const maxRetries = 3;
 
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Proxy error (${response.status}): ${errText}`);
+    while (attempt <= maxRetries) {
+      try {
+        console.log(`🚀 Sending request to ${apiKey ? 'Groq Direct (BYOK)' : 'Groq via proxy: ' + endpoint}`);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          signal: signal,
+          body: JSON.stringify({
+            model: this.model,
+            messages: messages,
+            temperature: this.temperature
+          })
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          if (response.status === 429 && attempt < maxRetries) {
+            attempt++;
+            let waitMs = 5000;
+            // Extract the suggested wait time from the Groq error if present
+            const msMatch = errText.match(/try again in ([0-9]+)ms/);
+            const sMatch = errText.match(/try again in ([0-9.]+)s/);
+            
+            if (msMatch) {
+              waitMs = parseInt(msMatch[1], 10) + 1000; // Add 1s buffer
+            } else if (sMatch) {
+              waitMs = parseFloat(sMatch[1]) * 1000 + 1000;
+            } else {
+              waitMs = attempt * 5000; // Fallback: 5s, 10s...
+            }
+            
+            console.warn(`⚠️ Rate limit hit. Retrying in ${Math.round(waitMs)}ms (Attempt ${attempt}/${maxRetries})`);
+            
+            // Wait for the duration, aborting if the user cancels
+            await new Promise<void>((resolve, reject) => {
+              const timeout = setTimeout(resolve, waitMs);
+              if (signal) {
+                signal.addEventListener('abort', () => {
+                  clearTimeout(timeout);
+                  reject(new Error('Process cancelled by user.'));
+                }, { once: true });
+              }
+            });
+            continue;
+          }
+          throw new Error(`Proxy error (${response.status}): ${errText}`);
+        }
+
+        const data = await response.json();
+        const text = data.choices[0]?.message?.content || "";
+        console.log(`✅ Received response from Groq. Length: ${text.length} chars`);
+        return text;
+      } catch (e) {
+        if ((e as Error).name === 'AbortError' || (e as Error).message === 'Process cancelled by user.') {
+          throw e;
+        }
+        if (attempt < maxRetries && !(e instanceof Error && e.message.includes('Proxy error'))) {
+          attempt++;
+          const waitMs = attempt * 3000;
+          console.warn(`⚠️ Network error. Retrying in ${waitMs}ms...`, e);
+          await new Promise<void>((resolve, reject) => {
+             const timeout = setTimeout(resolve, waitMs);
+             if (signal) {
+               signal.addEventListener('abort', () => {
+                 clearTimeout(timeout);
+                 reject(new Error('Process cancelled by user.'));
+               }, { once: true });
+             }
+          });
+          continue;
+        }
+        console.error("Groq Generate Error:", e);
+        throw e;
       }
-
-      const data = await response.json();
-      const text = data.choices[0]?.message?.content || "";
-      console.log(`✅ Received response from Groq. Length: ${text.length} chars`);
-      return text;
-    } catch (e) {
-      console.error("Groq Generate Error:", e);
-      throw e;
     }
+    throw new Error("Max retries exceeded");
   }
 
   // Simplified generateStream that returns an async generator just like GeminiClient
