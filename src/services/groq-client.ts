@@ -17,7 +17,7 @@ export const MODEL_RATES: Record<ModelType, { rpm: number; tpm: number; rpd: num
 };
 
 // TODO: Replace this with your actual Cloudflare Worker URL once deployed!
-const AI_PROXY_URL = 'https://ai-proxy.danprav.workers.dev';
+const AI_PROXY_URL = 'https://ai-proxy.promy.workers.dev';
 
 export class GroqClient {
   private model: string;
