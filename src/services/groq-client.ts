@@ -56,7 +56,13 @@ export class GroqClient {
     }
   }
 
-  async generate(prompt: string, systemPrompt?: string, signal?: AbortSignal): Promise<string> {
+  async generate(
+    prompt: string, 
+    systemPrompt?: string, 
+    signal?: AbortSignal,
+    responseFormat?: any,
+    maxTokens?: number
+  ): Promise<string> {
     const messages = [];
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
@@ -84,7 +90,9 @@ export class GroqClient {
           body: JSON.stringify({
             model: this.model,
             messages: messages,
-            temperature: this.temperature
+            temperature: this.temperature,
+            ...(responseFormat ? { response_format: responseFormat } : {}),
+            ...(maxTokens ? { max_tokens: maxTokens } : {})
           })
         });
 
@@ -227,19 +235,38 @@ ${schema}
 
 Do not include any other text, markdown, or explanation. Only output the JSON object.`;
 
-    const responseText = await this.generate(jsonPrompt, undefined, signal);
-    const cleanedResponse = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+    let attempt = 0;
+    const maxRetries = 2;
 
-    try {
-      return JSON.parse(cleanedResponse) as T;
-    } catch (e) {
-      console.warn('JSON parse failed in GroqClient, attempting basic match...', e);
-      const jsonMatch = responseText.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]) as T;
+    while (attempt <= maxRetries) {
+      if (signal?.aborted) throw new Error('Process cancelled by user.');
+
+      const responseText = await this.generate(jsonPrompt, undefined, signal, { type: 'json_object' }, 4096);
+      const cleanedResponse = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+
+      try {
+        return JSON.parse(cleanedResponse) as T;
+      } catch (e) {
+        console.warn(`JSON parse failed in GroqClient (Attempt ${attempt + 1}/${maxRetries + 1}), attempting basic match...`);
+        const jsonMatch = responseText.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+        if (jsonMatch) {
+          try {
+            return JSON.parse(jsonMatch[0]) as T;
+          } catch (innerE) {}
+        }
+        
+        if (attempt < maxRetries) {
+          attempt++;
+          console.warn(`⚠️ Retrying JSON generation due to invalid format (Attempt ${attempt}/${maxRetries})...`);
+          continue;
+        }
+        
+        console.error(`Failed to extract JSON from Groq response: \n${responseText}`);
+        throw new Error('Failed to extract JSON from Groq response');
       }
-      throw new Error('Failed to extract JSON from Groq response');
     }
+    
+    throw new Error('Failed to extract JSON from Groq response');
   }
 }
 

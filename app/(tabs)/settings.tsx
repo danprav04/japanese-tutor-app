@@ -346,7 +346,7 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
           <Text style={styles.sectionTitle}>📄 Upload Materials</Text>
           <Text style={styles.sectionSubtitle}>
             Upload PDFs, text files, or markdown to expand your curriculum.
-            {'\n'}Note: This process automatically rotates between 'llama-3.3-70b', 'qwen3-32b', and 'kimi-k2' to distribute API load and maximize quality.
+            {'\n'}Note: This process automatically rotates between 'llama-3.3-70b', 'llama-3.1-8b', and 'kimi-k2' to distribute API load and maximize quality.
           </Text>
 
           {isProcessing ? (
