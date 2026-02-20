@@ -135,8 +135,13 @@ export default function ExerciseCard({ exercise, onAnswer }: ExerciseCardProps) 
             </>
           ) : (
             <View style={styles.submittedRow}>
-              <Text style={styles.submittedAnswer}>Your answer: {selected}</Text>
-              <Text style={styles.submittedHint}>Sensei is checking... ✨</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.submittedAnswer}>Your answer: {selected}</Text>
+                {isCorrect && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text style={styles.submittedHint}>
+                {isCorrect ? 'Perfect match! ✨' : 'Sensei is checking... ✨'}
+              </Text>
             </View>
           )}
         </View>
