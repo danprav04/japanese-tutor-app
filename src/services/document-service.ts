@@ -112,7 +112,6 @@ export async function processDocument(
   // We rotate between them to avoid hitting daily request limits on a single model
   const DOC_MODELS = [
     'llama-3.3-70b-versatile',
-    'llama-3.1-8b-instant',
     'moonshotai/kimi-k2-instruct',
   ];
 

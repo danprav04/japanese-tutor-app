@@ -241,27 +241,34 @@ Do not include any other text, markdown, or explanation. Only output the JSON ob
     while (attempt <= maxRetries) {
       if (signal?.aborted) throw new Error('Process cancelled by user.');
 
-      const responseText = await this.generate(jsonPrompt, undefined, signal, { type: 'json_object' }, 4096);
-      const cleanedResponse = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
-
+      let responseText = '';
       try {
+        responseText = await this.generate(jsonPrompt, undefined, signal, { type: 'json_object' }, 4096);
+        const cleanedResponse = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
         return JSON.parse(cleanedResponse) as T;
       } catch (e) {
-        console.warn(`JSON parse failed in GroqClient (Attempt ${attempt + 1}/${maxRetries + 1}), attempting basic match...`);
-        const jsonMatch = responseText.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-        if (jsonMatch) {
-          try {
-            return JSON.parse(jsonMatch[0]) as T;
-          } catch (innerE) {}
+        if ((e as Error).name === 'AbortError' || (e as Error).message === 'Process cancelled by user.') {
+          throw e;
+        }
+
+        console.warn(`JSON API or parse failed (Attempt ${attempt + 1}/${maxRetries + 1}): ${(e as Error).message}`);
+        
+        if (responseText) {
+          const jsonMatch = responseText.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+          if (jsonMatch) {
+            try {
+              return JSON.parse(jsonMatch[0]) as T;
+            } catch (innerE) {}
+          }
         }
         
         if (attempt < maxRetries) {
           attempt++;
-          console.warn(`⚠️ Retrying JSON generation due to invalid format (Attempt ${attempt}/${maxRetries})...`);
+          console.warn(`⚠️ Retrying JSON generation (Attempt ${attempt}/${maxRetries})...`);
           continue;
         }
         
-        console.error(`Failed to extract JSON from Groq response: \n${responseText}`);
+        console.error(`Failed to extract JSON from Groq response: \n${responseText || (e as Error).message}`);
         throw new Error('Failed to extract JSON from Groq response');
       }
     }
