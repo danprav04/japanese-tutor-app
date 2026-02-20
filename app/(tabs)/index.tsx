@@ -30,6 +30,27 @@ const SENSEI_USER = {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+const ThinkBlock = ({ text }: { text: string }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <View style={styles.thinkContainer}>
+      <TouchableOpacity 
+        style={styles.thinkHeader} 
+        onPress={() => setExpanded(!expanded)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.thinkIcon}>{expanded ? '▼' : '▶'}</Text>
+        <Text style={styles.thinkTitle}>Thought Process</Text>
+      </TouchableOpacity>
+      {expanded && (
+        <View style={styles.thinkContent}>
+          <Text style={styles.thinkText}>{text}</Text>
+        </View>
+      )}
+    </View>
+  );
+};
+
 export default function ChatScreen() {
   const { apiKeys, currentModel, isGeminiReady, currentThreadId, setCurrentThreadId } = useAppStore();
   const [messages, setMessages] = useState<IMessage[]>([]);
@@ -309,25 +330,37 @@ export default function ChatScreen() {
 
             // Strip [ANSWER] prefix from user messages (it's an internal signal for the AI)
             let displayText = currentMessage.text;
+            let thinkText = null;
+            
+            const thinkRegex = /<think>\s*([\s\S]*?)\s*<\/think>/i;
+            const thinkMatch = displayText.match(thinkRegex);
+            if (thinkMatch) {
+              thinkText = thinkMatch[1];
+              displayText = displayText.replace(thinkRegex, '').trim();
+            }
+
             if (displayText.startsWith('[ANSWER] ')) {
               displayText = displayText.replace('[ANSWER] ', '');
             }
 
             return (
               <View style={{ paddingHorizontal: 10, paddingVertical: 5 }}>
-                <Markdown
-                  style={markdownStyles}
-                  rules={{
-                    // Disable default paragraph margin to fit better in bubble
-                    paragraph: (node: any, children: any, parent: any, styles: any) => (
-                      <Text key={node.key} style={styles.paragraph}>
-                        {children}
-                      </Text>
-                    ),
-                  }}
-                >
-                  {displayText}
-                </Markdown>
+                {thinkText ? <ThinkBlock text={thinkText} /> : null}
+                {displayText ? (
+                  <Markdown
+                    style={markdownStyles}
+                    rules={{
+                      // Disable default paragraph margin to fit better in bubble
+                      paragraph: (node: any, children: any, parent: any, styles: any) => (
+                        <Text key={node.key} style={styles.paragraph}>
+                          {children}
+                        </Text>
+                      ),
+                    }}
+                  >
+                    {displayText}
+                  </Markdown>
+                ) : null}
               </View>
             );
           }}
@@ -707,5 +740,39 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     paddingTop: 12,
+  },
+  thinkContainer: {
+    marginVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+  },
+  thinkHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  thinkIcon: {
+    color: '#a5b4fc',
+    fontSize: 12,
+    marginRight: 8,
+  },
+  thinkTitle: {
+    color: '#a5b4fc',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  thinkContent: {
+    padding: 10,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  thinkText: {
+    color: '#aaa',
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });

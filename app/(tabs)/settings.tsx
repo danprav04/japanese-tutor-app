@@ -312,16 +312,26 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
                     <Text style={styles.modelName}>{model}</Text>
                     {isSelected && <View style={styles.selectedBadge} />}
                   </View>
-                  <Text style={styles.modelDesc}>
-                    Limits: ~{totalRpm} RPM / ~{totalRpd.toLocaleString()} RPD
-                  </Text>
-                  <Text style={styles.modelSubDesc}>
-                    ({apiKeys.length} key{apiKeys.length !== 1 ? 's' : ''} configured)
-                  </Text>
+                  {apiKeys.length > 0 && (
+                    <>
+                      <Text style={styles.modelDesc}>
+                        Limits: ~{totalRpm} RPM / ~{totalRpd.toLocaleString()} RPD
+                      </Text>
+                      <Text style={styles.modelSubDesc}>
+                        ({apiKeys.length} key{apiKeys.length !== 1 ? 's' : ''} configured)
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
                );
             })}
           </View>
+
+          {apiKeys.length === 0 && (
+            <Text style={styles.freeTierWarning}>
+              ⚠️ Using the public free tier. Complex requests or high traffic may cause rate limit errors or slow responses. Add an API key above to bypass this.
+            </Text>
+          )}
         </View>
 
         {/* Upload Materials */}
@@ -642,6 +652,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#7f1d1d',
+  },
+  freeTierWarning: {
+    color: '#fbbf24',
+    fontSize: 13,
+    marginTop: 12,
+    lineHeight: 18,
+    backgroundColor: '#451a03',
+    padding: 12,
+    borderRadius: 8,
   },
   dangerButtonText: {
     color: '#ef4444',
