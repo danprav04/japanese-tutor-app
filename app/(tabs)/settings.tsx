@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
   import { useAppStore, type ModelType } from '../../src/store/app-store';
   import { MODEL_RATES } from '../../src/services/gemini-client';
 import { deleteAllCurriculum } from '../../src/services/curriculum-service';
+import { seedStarterCurriculum } from '../../src/services/seed-service';
 
   import { processDocument, getUploadedDocuments, deleteDocument } from '../../src/services/document-service';
   import { resetProgress } from '../../src/services/progress-service';
@@ -196,13 +197,38 @@ import { deleteAllCurriculum } from '../../src/services/curriculum-service';
             try {
               setIsProcessing(true);
               await deleteAllCurriculum();
-              Alert.alert('Reset Complete', 'All curriculum data has been deleted. Please restart the app to re-seed the starter content.');
+              Alert.alert('Reset Complete', 'All curriculum data has been deleted. You can seed the starter content again.');
             } catch (error) {
               console.error('Failed to delete curriculum:', error);
               Alert.alert('Error', 'Failed to delete curriculum.');
             } finally {
               setIsProcessing(false);
               loadDocuments(); // Refresh (should be empty)
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSeedCurriculum = () => {
+    Alert.alert(
+      '🌱 Seed Starter Curriculum',
+      'This will add the default N5 vocabulary, grammar, and kanji to your curriculum.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Seed',
+          onPress: async () => {
+            try {
+              setIsProcessing(true);
+              await seedStarterCurriculum();
+              Alert.alert('Success', 'Starter curriculum has been seeded.');
+            } catch (error) {
+              console.error('Failed to seed curriculum:', error);
+              Alert.alert('Error', 'Failed to seed curriculum.');
+            } finally {
+              setIsProcessing(false);
             }
           },
         },
@@ -357,6 +383,22 @@ import { deleteAllCurriculum } from '../../src/services/curriculum-service';
           )}
 
           {/* Document list hidden — managed via Curriculum tab */}
+        </View>
+
+        {/* Starter Content */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🌱 Starter Content</Text>
+          <Text style={styles.sectionSubtitle}>
+            Add the starter N5 curriculum to your database
+          </Text>
+
+          <TouchableOpacity 
+            style={[styles.dangerButton, { borderColor: '#166534', backgroundColor: '#052e16' }]} 
+            onPress={handleSeedCurriculum}
+            disabled={isProcessing}
+          >
+            <Text style={[styles.dangerButtonText, { color: '#4ade80' }]}>Seed Starter Curriculum</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Danger Zone */}
