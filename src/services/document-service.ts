@@ -9,6 +9,7 @@
  */
 
 import { File } from 'expo-file-system/next';
+import { extractText } from 'expo-pdf-text-extract';
 import { getDatabase } from '../db/database';
 import { getGroqClient, MODEL_RATES } from './groq-client';
 import { addNode } from './curriculum-service';
@@ -107,14 +108,16 @@ export async function processDocument(
 ): Promise<number> {
   const client = getGroqClient();
   
-  // Ensure we use the user's selected model
-  const currentModel = useAppStore.getState().currentModel;
-  client.setModel(currentModel);
-  // Get model specific configuration
-  const modelConfig = MODEL_RATES[currentModel];
+  // Save original model to restore later
+  const originalModel = useAppStore.getState().currentModel;
+  const docModel = 'llama-3.3-70b-versatile';
+  client.setModel(docModel);
+  
+  const modelConfig = MODEL_RATES[docModel as keyof typeof MODEL_RATES];
   const chunkSize = modelConfig ? modelConfig.maxChunkSize : 2000;
 
-  const db = getDatabase();
+  try {
+    const db = getDatabase();
   
   // 1. Check if document already exists
   const checkResult = await db.execute(
@@ -132,11 +135,15 @@ export async function processDocument(
   // 2. Read file content
   let textContent = '';
   try {
-    const file = new File(fileUri);
-    textContent = await file.text();
+    if (fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
+      textContent = await extractText(fileUri);
+    } else {
+      const file = new File(fileUri);
+      textContent = await file.text();
+    }
   } catch (error) {
     console.error('Failed to read file:', error);
-    throw new Error('Failed to read file content. Ensure it is a valid text file.');
+    throw new Error('Failed to read file content. Ensure it is a valid document.');
   }
 
   if (!textContent || textContent.trim().length === 0) {
@@ -286,7 +293,10 @@ export async function processDocument(
     [ragChunks.length, documentId]
   );
 
-  return importedCount;
+    return importedCount;
+  } finally {
+    client.setModel(originalModel);
+  }
 }
 
 /**

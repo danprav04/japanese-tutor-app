@@ -345,7 +345,8 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📄 Upload Materials</Text>
           <Text style={styles.sectionSubtitle}>
-            Upload PDFs, text files, or markdown to expand your curriculum
+            Upload PDFs, text files, or markdown to expand your curriculum.
+            {'\n'}Note: This process uses the 'llama-3.3-70b-versatile' model to ensure highest extraction quality.
           </Text>
 
           {isProcessing ? (
