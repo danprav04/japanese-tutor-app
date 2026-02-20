@@ -332,7 +332,7 @@ async function summarizeIfNeeded(messages: ConversationMessage[]): Promise<Conve
  * Initialize the tutor with API keys and model selection.
  */
 export function initTutor(apiKeys: string[], model: ModelType = 'qwen/qwen3-32b'): void {
-  initGroqClient(model);
+  initGroqClient(model, apiKeys);
 }
 
 /**

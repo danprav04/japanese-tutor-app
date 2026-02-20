@@ -53,9 +53,7 @@ export default function ChatScreen() {
 
   // Re-initialize Gemini client when keys/model change
   useEffect(() => {
-    if (apiKeys.length > 0) {
-      initTutor(apiKeys, currentModel);
-    }
+    initTutor(apiKeys, currentModel);
   }, [apiKeys, currentModel]);
 
   const loadThread = async (threadId: string) => {

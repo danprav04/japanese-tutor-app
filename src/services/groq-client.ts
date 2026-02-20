@@ -21,11 +21,24 @@ const AI_PROXY_URL = 'https://ai-proxy.promy.workers.dev';
 
 export class GroqClient {
   private model: string;
+  private apiKeys: string[];
+  private currentKeyIndex = 0;
   private temperature = 0.7;
 
-  constructor(model: string = 'qwen/qwen3-32b') {
+  constructor(model: string = 'qwen/qwen3-32b', apiKeys: string[] = []) {
     this.model = model;
-    console.log(`🔑 Groq Proxy Client initialized. Model: ${model}`);
+    this.apiKeys = apiKeys;
+    console.log(`🔑 Groq Proxy Client initialized. Model: ${model}. BYOK active: ${apiKeys.length > 0}`);
+  }
+
+  /**
+   * Get the next API key in the rotation.
+   */
+  private getNextApiKey(): string | null {
+    if (this.apiKeys.length === 0) return null;
+    const key = this.apiKeys[this.currentKeyIndex];
+    this.currentKeyIndex = (this.currentKeyIndex + 1) % this.apiKeys.length;
+    return key;
   }
 
   setModel(model: string): void {
@@ -50,11 +63,19 @@ export class GroqClient {
     }
     messages.push({ role: 'user', content: prompt });
 
+    const apiKey = this.getNextApiKey();
+    const endpoint = apiKey ? 'https://api.groq.com/openai/v1/chat/completions' : AI_PROXY_URL;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
     try {
-      console.log(`🚀 Sending request to Groq via proxy: ${AI_PROXY_URL}`);
-      const response = await fetch(AI_PROXY_URL, {
+      console.log(`🚀 Sending request to ${apiKey ? 'Groq Direct (BYOK)' : 'Groq via proxy: ' + endpoint}`);
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         signal: signal,
         body: JSON.stringify({
           model: this.model,
@@ -86,9 +107,17 @@ export class GroqClient {
     }
     messages.push({ role: 'user', content: prompt });
 
-    const response = await fetch(AI_PROXY_URL, {
+    const apiKey = this.getNextApiKey();
+    const endpoint = apiKey ? 'https://api.groq.com/openai/v1/chat/completions' : AI_PROXY_URL;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         model: this.model,
         messages: messages,
@@ -164,8 +193,8 @@ Do not include any other text, markdown, or explanation. Only output the JSON ob
 // Singleton pattern to mimic gemini-client.ts
 let clientInstance: GroqClient | null = null;
 
-export function initGroqClient(model?: string): GroqClient {
-  clientInstance = new GroqClient(model);
+export function initGroqClient(model?: string, apiKeys: string[] = []): GroqClient {
+  clientInstance = new GroqClient(model, apiKeys);
   return clientInstance;
 }
 
