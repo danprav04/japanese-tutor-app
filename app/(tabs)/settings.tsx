@@ -349,55 +349,67 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
             {'\n'}Note: This process automatically rotates between 'llama-3.3-70b', 'llama-3.1-8b', and 'kimi-k2' to distribute API load and maximize quality.
           </Text>
 
-          {isProcessing ? (
-            <View style={styles.processingContainer}>
-              <View style={styles.progressRow}>
-                <ActivityIndicator size="small" color="#6366f1" />
-                <Text style={styles.progressText}>
-                    {progressMessage || 'Processing...'} ({Math.round(uploadProgress * 100)}%)
-                </Text>
-              </View>
-              
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: `${Math.round(uploadProgress * 100)}%` }]} />
-              </View>
-              
-              <TouchableOpacity style={styles.cancelButton} onPress={handleCancelUpload}>
-                <Text style={styles.cancelButtonText}>Cancel Upload</Text>
-              </TouchableOpacity>
+          {apiKeys.length === 0 ? (
+            <View style={styles.lockedContainer}>
+              <Text style={styles.lockedIcon}>🔒</Text>
+              <Text style={styles.lockedTitle}>BYOK Required</Text>
+              <Text style={styles.lockedText}>
+                Please add an API key above to unlock document processing.
+              </Text>
             </View>
           ) : (
-            <TouchableOpacity
-                style={styles.uploadButton}
-                onPress={handleUploadMaterial}
-            >
-                <Text style={styles.uploadButtonText}>📁 Choose File</Text>
-            </TouchableOpacity>
-          )}
+            <>
+              {isProcessing ? (
+                <View style={styles.processingContainer}>
+                  <View style={styles.progressRow}>
+                    <ActivityIndicator size="small" color="#6366f1" />
+                    <Text style={styles.progressText}>
+                        {progressMessage || 'Processing...'} ({Math.round(uploadProgress * 100)}%)
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.progressBarBg}>
+                    <View style={[styles.progressBarFill, { width: `${Math.round(uploadProgress * 100)}%` }]} />
+                  </View>
+                  
+                  <TouchableOpacity style={styles.cancelButton} onPress={handleCancelUpload}>
+                    <Text style={styles.cancelButtonText}>Cancel Upload</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                    style={styles.uploadButton}
+                    onPress={handleUploadMaterial}
+                >
+                    <Text style={styles.uploadButtonText}>📁 Choose File</Text>
+                </TouchableOpacity>
+              )}
 
-          {/* Document list */}
-          {uploadedDocs.length > 0 && (
-            <View style={styles.docList}>
-                <Text style={styles.subHeader}>Uploaded Documents</Text>
-                {uploadedDocs.map((doc) => (
-                    <View key={doc.documentId} style={styles.docItem}>
-                        <View style={styles.docInfo}>
-                            <Text style={styles.docName} numberOfLines={1}>{doc.filename}</Text>
-                            <Text style={styles.docStatus}>
-                                {doc.processed === -1 ? '❌ Failed' : 
-                                 doc.processed === 0 ? '⏳ Processing' : 
-                                 '✅ API Processed'}
-                            </Text>
+              {/* Document list */}
+              {uploadedDocs.length > 0 && (
+                <View style={styles.docList}>
+                    <Text style={styles.subHeader}>Uploaded Documents</Text>
+                    {uploadedDocs.map((doc) => (
+                        <View key={doc.documentId} style={styles.docItem}>
+                            <View style={styles.docInfo}>
+                                <Text style={styles.docName} numberOfLines={1}>{doc.filename}</Text>
+                                <Text style={styles.docStatus}>
+                                    {doc.processed === -1 ? '❌ Failed' : 
+                                     doc.processed === 0 ? '⏳ Processing' : 
+                                     '✅ API Processed'}
+                                </Text>
+                            </View>
+                            <TouchableOpacity 
+                                onPress={() => handleRemoveDocument(doc.documentId, doc.filename)}
+                                style={styles.deleteDocButton}
+                            >
+                                <Text style={styles.deleteDocText}>✕</Text>
+                            </TouchableOpacity>
                         </View>
-                        <TouchableOpacity 
-                            onPress={() => handleRemoveDocument(doc.documentId, doc.filename)}
-                            style={styles.deleteDocButton}
-                        >
-                            <Text style={styles.deleteDocText}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-                ))}
-            </View>
+                    ))}
+                </View>
+              )}
+            </>
           )}
 
           {/* Document list hidden — managed via Curriculum tab */}
@@ -729,5 +741,30 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
+  },
+  lockedContainer: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderStyle: 'dashed',
+  },
+  lockedIcon: {
+    fontSize: 32,
+    marginBottom: 12,
+  },
+  lockedTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  lockedText: {
+    color: '#888',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
