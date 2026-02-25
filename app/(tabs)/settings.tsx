@@ -8,8 +8,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { deleteAllCurriculum } from '../../src/services/curriculum-service';
 import { seedStarterCurriculum } from '../../src/services/seed-service';
 
-  import { processDocument, getUploadedDocuments, deleteDocument } from '../../src/services/document-service';
+import { processDocument, getUploadedDocuments, deleteDocument } from '../../src/services/document-service';
   import { resetProgress } from '../../src/services/progress-service';
+  import * as Sharing from 'expo-sharing';
+  import { exportCurriculumToCSV } from '../../src/services/export-service';
 
   export default function SettingsScreen() {
     const {
@@ -236,6 +238,29 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
     );
   };
 
+  const handleExportCSV = async () => {
+    try {
+      setIsProcessing(true);
+      const fileUri = await exportCurriculumToCSV();
+      
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Export Curriculum CSV',
+          UTI: 'public.comma-separated-values-text'
+        });
+      } else {
+        Alert.alert('Sharing Unavailable', 'File sharing is not supported on this device.');
+      }
+    } catch (error) {
+      console.error('Failed to export CSV:', error);
+      Alert.alert('Error', 'Failed to generate curriculum export.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleDonation = () => {
     Alert.alert(
       '❤️ Support Development',
@@ -428,6 +453,22 @@ import { seedStarterCurriculum } from '../../src/services/seed-service';
             disabled={isProcessing}
           >
             <Text style={[styles.dangerButtonText, { color: '#4ade80' }]}>Seed Starter Curriculum</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Data Export */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>💾 Data Export</Text>
+          <Text style={styles.sectionSubtitle}>
+            Export your entire curriculum and learning progress to a CSV file.
+          </Text>
+
+          <TouchableOpacity 
+            style={[styles.uploadButton, { borderColor: '#2563eb', backgroundColor: '#1e3a8a', borderStyle: 'solid' }]} 
+            onPress={handleExportCSV}
+            disabled={isProcessing}
+          >
+            <Text style={[styles.uploadButtonText, { color: '#93c5fd' }]}>Export Curriculum to CSV</Text>
           </TouchableOpacity>
         </View>
 
