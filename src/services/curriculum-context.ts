@@ -2,8 +2,8 @@
  * Curriculum Context Service
  *
  * Builds a summary of the student's curriculum and mastery state
- * for injection into the tutor's system prompt. This makes the AI
- * aware of what the student has learned, is learning, and needs to learn.
+ * for injection into the tutor's system prompt. Identifies the
+ * target lesson and review nodes for pre-fetching source material.
  */
 
 import { getDatabase } from '../db/database';
@@ -11,12 +11,20 @@ import { getDatabase } from '../db/database';
 // ─── Types ───────────────────────────────────────────────────
 
 interface CurriculumItem {
+  nodeId: string;
   title: string;
   type: string;
   jlptLevel: number;
   masteryScore: number;
   attempts: number;
-  meaning: string | null;
+  summary: string | null;
+}
+
+export interface CurriculumContextResult {
+  context: string;
+  status: CurriculumStatus;
+  targetLessonNodeId: string | null;
+  targetReviewNodeId: string | null;
 }
 
 // ─── Public API ──────────────────────────────────────────────
@@ -24,46 +32,41 @@ interface CurriculumItem {
 /**
  * Build a curriculum context string for the AI tutor.
  * Groups items by mastery level and type, prioritizing unmastered items.
+ * Also identifies target lesson and review nodes for RAG pre-fetching.
  */
 export type CurriculumStatus = 'empty' | 'all_mastered' | 'has_content';
 
-export async function buildCurriculumContext(): Promise<{ context: string; status: CurriculumStatus }> {
+export async function buildCurriculumContext(): Promise<CurriculumContextResult> {
   const db = getDatabase();
 
   // Join curriculum_nodes with user_progress to get mastery data
   const result = await db.execute(
-    `SELECT cn.title, cn.type, cn.jlpt_level, cn.content_payload,
+    `SELECT cn.node_id, cn.title, cn.type, cn.jlpt_level, cn.summary,
             COALESCE(up.mastery_score, 0) as mastery_score,
             COALESCE(up.attempts, 0) as attempts
      FROM curriculum_nodes cn
      LEFT JOIN user_progress up ON cn.node_id = up.node_id
-     ORDER BY up.mastery_score ASC, cn.type, cn.jlpt_level DESC`
+     ORDER BY cn.sort_order ASC, up.mastery_score ASC, cn.type, cn.jlpt_level DESC`
   );
 
   if (!result.rows || result.rows.length === 0) {
     return {
       context: '⚠️ CURRICULUM IS EMPTY. The student has NO curriculum items. Do NOT teach anything. Tell them to add curriculum items via the Curriculum tab before starting lessons. Do NOT invent topics or suggest learning anything.',
       status: 'empty',
+      targetLessonNodeId: null,
+      targetReviewNodeId: null,
     };
   }
 
-  const items: CurriculumItem[] = (result.rows as any[]).map((row) => {
-    let meaning: string | null = null;
-    if (row.content_payload) {
-      try {
-        const payload = JSON.parse(row.content_payload as string);
-        meaning = payload.meaning || null;
-      } catch {}
-    }
-    return {
-      title: row.title as string,
-      type: row.type as string,
-      jlptLevel: row.jlpt_level as number,
-      masteryScore: row.mastery_score as number,
-      attempts: row.attempts as number,
-      meaning,
-    };
-  });
+  const items: CurriculumItem[] = (result.rows as any[]).map((row) => ({
+    nodeId: row.node_id as string,
+    title: row.title as string,
+    type: row.type as string,
+    jlptLevel: row.jlpt_level as number,
+    masteryScore: row.mastery_score as number,
+    attempts: row.attempts as number,
+    summary: (row.summary as string) ?? null,
+  }));
 
   // Group by mastery bands
   const unlearned = items.filter((i) => i.masteryScore < 0.3);
@@ -71,11 +74,21 @@ export async function buildCurriculumContext(): Promise<{ context: string; statu
   const familiar = items.filter((i) => i.masteryScore >= 0.7 && i.masteryScore < 0.95);
   const mastered = items.filter((i) => i.masteryScore >= 0.95);
 
+  // Identify target lesson (lowest mastery, preferring unlearned)
+  const targetLesson = unlearned[0] || learning[0] || familiar[0] || null;
+
+  // Identify target review (weakest item with at least 1 attempt, different from lesson)
+  const targetReview = items.find(
+    (i) => i.attempts > 0 && i.masteryScore < 0.7 && i.nodeId !== targetLesson?.nodeId
+  ) || null;
+
   // Detect all-mastered state
   if (mastered.length === items.length) {
     return {
       context: `=== STUDENT CURRICULUM STATUS ===\nTotal items: ${items.length} | ALL MASTERED ✅\n\n🎉 ALL ${items.length} items are mastered! Congratulate the student and tell them they have completed all available lessons. Suggest they add more curriculum via the Curriculum tab if they want to keep learning. Do NOT invent new topics.`,
       status: 'all_mastered',
+      targetLessonNodeId: null,
+      targetReviewNodeId: null,
     };
   }
 
@@ -84,15 +97,28 @@ export async function buildCurriculumContext(): Promise<{ context: string; statu
   lines.push(`Total items: ${items.length} | Mastered: ${mastered.length} | Learning: ${learning.length + familiar.length} | New: ${unlearned.length}`);
   lines.push('');
 
+  // Highlight target lesson
+  if (targetLesson) {
+    const detail = targetLesson.summary ? ` — ${targetLesson.summary}` : '';
+    lines.push(`🎯 TARGET LESSON: "${targetLesson.title}"${detail} (${targetLesson.type})`);
+    lines.push('');
+  }
+
+  // Highlight target review
+  if (targetReview) {
+    const pct = Math.round(targetReview.masteryScore * 100);
+    lines.push(`🔄 TARGET REVIEW: "${targetReview.title}" (${pct}% mastery)`);
+    lines.push('');
+  }
+
   // Unlearned items — list in detail (these should be taught)
   if (unlearned.length > 0) {
     lines.push('📕 NOT YET LEARNED (prioritize teaching these):');
     const grouped = groupByType(unlearned);
     for (const [type, typeItems] of Object.entries(grouped)) {
       lines.push(`  ${typeLabel(type)}:`);
-      // Show up to 8 items per type to keep context compact
       for (const item of typeItems.slice(0, 8)) {
-        const detail = item.meaning ? ` — ${item.meaning}` : '';
+        const detail = item.summary ? ` — ${item.summary}` : '';
         lines.push(`    • ${item.title}${detail}`);
       }
       if (typeItems.length > 8) {
@@ -131,7 +157,12 @@ export async function buildCurriculumContext(): Promise<{ context: string; statu
     lines.push(`✅ MASTERED (${mastered.length} items — no need to teach these)`);
   }
 
-  return { context: lines.join('\n'), status: 'has_content' };
+  return {
+    context: lines.join('\n'),
+    status: 'has_content',
+    targetLessonNodeId: targetLesson?.nodeId ?? null,
+    targetReviewNodeId: targetReview?.nodeId ?? null,
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -157,23 +188,13 @@ function typeLabel(type: string): string {
 // ─── Contextual SRS Review Context ──────────────────────────
 
 /**
- * Build a review context block listing due flashcards and weak items
+ * Build a review context block listing weak items
  * for the tutor to naturally weave into conversation.
  */
 export async function getReviewContext(): Promise<string> {
   const db = getDatabase();
 
-  // 1) Get due flashcards (up to 5)
-  const now = new Date().toISOString();
-  const dueResult = await db.execute(
-    `SELECT front, back, card_type FROM cards
-     WHERE due IS NULL OR due <= ?
-     ORDER BY due ASC
-     LIMIT 5`,
-    [now]
-  );
-
-  // 2) Get weak curriculum items (mastery < 0.35, with at least 1 attempt)
+  // Get weak curriculum items (mastery < 0.35, with at least 1 attempt)
   const weakResult = await db.execute(
     `SELECT cn.title, cn.type, up.mastery_score
      FROM user_progress up
@@ -183,35 +204,24 @@ export async function getReviewContext(): Promise<string> {
      LIMIT 5`
   );
 
-  const dueCards = (dueResult.rows as any[]) || [];
   const weakItems = (weakResult.rows as any[]) || [];
 
-  if (dueCards.length === 0 && weakItems.length === 0) {
+  if (weakItems.length === 0) {
     return '';
   }
 
   const lines: string[] = [];
-  lines.push('=== ITEMS DUE FOR REVIEW ===');
+  lines.push('=== ITEMS NEEDING REVIEW ===');
   lines.push('When appropriate, weave a review of these items into the conversation naturally.');
   lines.push('For example, create a sentence that uses them and ask the student about it.');
   lines.push('');
 
-  if (dueCards.length > 0) {
-    lines.push('📋 Flashcards due:');
-    for (const card of dueCards) {
-      lines.push(`  • ${card.front} → ${card.back} (${card.card_type})`);
-    }
-    lines.push('');
+  lines.push('⚠️ Weak items (low mastery):');
+  for (const item of weakItems) {
+    const pct = Math.round((item.mastery_score as number) * 100);
+    lines.push(`  • ${item.title} (${item.type}, ${pct}% mastery)`);
   }
-
-  if (weakItems.length > 0) {
-    lines.push('⚠️ Weak items (low mastery):');
-    for (const item of weakItems) {
-      const pct = Math.round((item.mastery_score as number) * 100);
-      lines.push(`  • ${item.title} (${item.type}, ${pct}% mastery)`);
-    }
-    lines.push('');
-  }
+  lines.push('');
 
   return lines.join('\n');
 }

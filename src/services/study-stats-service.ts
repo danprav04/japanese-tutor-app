@@ -2,7 +2,7 @@
  * Study Stats Service
  *
  * Provides rich analytics data for the progress screen:
- * - Daily activity history
+ * - Daily activity history (based on user_progress)
  * - Recent mastery changes
  * - Study session summaries
  * - Weekly streak calendar
@@ -14,9 +14,7 @@ import { getDatabase } from '../db/database';
 
 export interface DailyActivity {
   date: string;        // YYYY-MM-DD
-  reviewCount: number;
-  correctCount: number;
-  newCardsStudied: number;
+  studyCount: number;  // number of items studied that day
 }
 
 export interface MasteryChange {
@@ -29,18 +27,16 @@ export interface MasteryChange {
 }
 
 export interface StudySessionSummary {
-  todayReviews: number;
-  todayCorrect: number;
-  todayAccuracy: number;
+  todayItemsStudied: number;
   todayMasteryGains: number; // nodes that crossed 0.5 today
-  cardsReviewedThisWeek: number;
+  itemsStudiedThisWeek: number;
 }
 
 export interface WeekDay {
   date: string;   // YYYY-MM-DD
   dayLabel: string; // "Mon", "Tue", etc.
   active: boolean;
-  reviewCount: number;
+  studyCount: number;
 }
 
 export interface TypeBreakdown {
@@ -72,21 +68,19 @@ function getDayLabel(d: Date): string {
 // ─── Public API ──────────────────────────────────────────────
 
 /**
- * Get review activity for the last N days.
+ * Get study activity for the last N days (based on user_progress.last_reviewed).
  */
 export async function getDailyActivity(days: number = 7): Promise<DailyActivity[]> {
   const db = getDatabase();
 
   const result = await db.execute(
     `SELECT
-       DATE(review_time) as review_date,
-       COUNT(*) as review_count,
-       SUM(CASE WHEN rating >= 3 THEN 1 ELSE 0 END) as correct_count,
-       SUM(CASE WHEN state = 0 THEN 1 ELSE 0 END) as new_cards
-     FROM review_logs
-     WHERE review_time >= datetime('now', ?)
-     GROUP BY DATE(review_time)
-     ORDER BY review_date ASC`,
+       DATE(last_reviewed) as study_date,
+       COUNT(*) as study_count
+     FROM user_progress
+     WHERE last_reviewed >= datetime('now', ?)
+     GROUP BY DATE(last_reviewed)
+     ORDER BY study_date ASC`,
     [`-${days} days`]
   );
 
@@ -99,22 +93,18 @@ export async function getDailyActivity(days: number = 7): Promise<DailyActivity[
     const dateStr = getDateString(d);
     activityMap.set(dateStr, {
       date: dateStr,
-      reviewCount: 0,
-      correctCount: 0,
-      newCardsStudied: 0,
+      studyCount: 0,
     });
   }
 
   // Fill with actual data
   if (result.rows) {
     for (const row of result.rows as Record<string, unknown>[]) {
-      const dateStr = row.review_date as string;
+      const dateStr = row.study_date as string;
       if (activityMap.has(dateStr)) {
         activityMap.set(dateStr, {
           date: dateStr,
-          reviewCount: (row.review_count as number) ?? 0,
-          correctCount: (row.correct_count as number) ?? 0,
-          newCardsStudied: (row.new_cards as number) ?? 0,
+          studyCount: (row.study_count as number) ?? 0,
         });
       }
     }
@@ -163,18 +153,14 @@ export async function getStudySessionSummary(): Promise<StudySessionSummary> {
   const db = getDatabase();
   const today = getDateString(new Date());
 
-  // Today's review stats
+  // Today's items studied (items reviewed today based on last_reviewed)
   const todayResult = await db.execute(
-    `SELECT
-       COUNT(*) as total,
-       SUM(CASE WHEN rating >= 3 THEN 1 ELSE 0 END) as correct
-     FROM review_logs
-     WHERE DATE(review_time) = ?`,
+    `SELECT COUNT(*) as count
+     FROM user_progress
+     WHERE DATE(last_reviewed) = ?`,
     [today]
   );
-
-  const todayReviews = ((todayResult.rows?.[0] as any)?.total as number) ?? 0;
-  const todayCorrect = ((todayResult.rows?.[0] as any)?.correct as number) ?? 0;
+  const todayItemsStudied = ((todayResult.rows?.[0] as any)?.count as number) ?? 0;
 
   // Mastery gains today (nodes that have been reviewed today and > 0.5)
   const masteryResult = await db.execute(
@@ -186,19 +172,17 @@ export async function getStudySessionSummary(): Promise<StudySessionSummary> {
   );
   const todayMasteryGains = ((masteryResult.rows?.[0] as any)?.count as number) ?? 0;
 
-  // This week's total
+  // This week's total items studied
   const weekResult = await db.execute(
-    `SELECT COUNT(*) as count FROM review_logs
-     WHERE review_time >= datetime('now', '-7 days')`
+    `SELECT COUNT(*) as count FROM user_progress
+     WHERE last_reviewed >= datetime('now', '-7 days')`
   );
-  const cardsReviewedThisWeek = ((weekResult.rows?.[0] as any)?.count as number) ?? 0;
+  const itemsStudiedThisWeek = ((weekResult.rows?.[0] as any)?.count as number) ?? 0;
 
   return {
-    todayReviews,
-    todayCorrect,
-    todayAccuracy: todayReviews > 0 ? todayCorrect / todayReviews : 0,
+    todayItemsStudied,
     todayMasteryGains,
-    cardsReviewedThisWeek,
+    itemsStudiedThisWeek,
   };
 }
 
@@ -213,8 +197,8 @@ export async function getWeeklyStreak(): Promise<WeekDay[]> {
     return {
       date: a.date,
       dayLabel: getDayLabel(d),
-      active: a.reviewCount > 0,
-      reviewCount: a.reviewCount,
+      active: a.studyCount > 0,
+      studyCount: a.studyCount,
     };
   });
 }

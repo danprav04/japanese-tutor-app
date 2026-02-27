@@ -53,7 +53,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
       <Text style={styles.heroSubtitle}>Your AI Japanese Tutor</Text>
       <View style={styles.featureList}>
         <FeatureItem emoji="🧠" text="Adaptive learning with BKT mastery tracking" />
-        <FeatureItem emoji="📝" text="Spaced repetition flashcards (FSRS)" />
+        <FeatureItem emoji="💬" text="Conversational AI tutor that manages your reviews" />
         <FeatureItem emoji="💬" text="Conversational AI tutor powered by Gemini" />
         <FeatureItem emoji="📖" text="50+ N5 starter curriculum items" />
         <FeatureItem emoji="🔒" text="100% local — your data stays on your device" />
@@ -67,11 +67,10 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
       <Text style={styles.heroEmoji}>✨</Text>
       <Text style={styles.heroTitle}>You're all set!</Text>
       <Text style={styles.readyText}>
-        Start chatting with Sensei to learn Japanese. The tutor will adapt to your level and create flashcards automatically.
+        Start chatting with Sensei to learn Japanese. The tutor will adapt to your level and track your progress automatically.
       </Text>
       <View style={styles.tipList}>
         <Text style={styles.tipItem}>💡 Chat naturally — ask questions, practice, or just say こんにちは</Text>
-        <Text style={styles.tipItem}>📚 Review tab shows your flashcards with spaced repetition</Text>
         <Text style={styles.tipItem}>📊 Track your mastery on the Progress tab</Text>
         <Text style={styles.tipItem}>📖 Browse the full curriculum in the Curriculum tab</Text>
       </View>

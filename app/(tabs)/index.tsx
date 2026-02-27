@@ -176,9 +176,9 @@ export default function ChatScreen() {
         setCurrentThreadId(threadId);
       }
 
-      const { text: response, cardsCreated, progressUpdates, curriculumStatus: status } = await sendMessage(threadId, userMessage.text);
+      const { text: response, progressUpdates, curriculumStatus: status } = await sendMessage(threadId, userMessage.text);
       setCurriculumStatus(status);
-      console.log('📱 ChatScreen received response:', { length: response.length, cards: cardsCreated, curriculumStatus: status });
+      console.log('📱 ChatScreen received response:', { length: response.length, curriculumStatus: status });
 
       const aiMessage: IMessage = {
         _id: `ai-${Date.now()}`,
@@ -187,19 +187,6 @@ export default function ChatScreen() {
         user: SENSEI_USER,
       };
       setMessages((prev) => GiftedChat.append(prev, [aiMessage]));
-
-      if (cardsCreated > 0) {
-        const cardNotif: IMessage = {
-          _id: `card-notif-${Date.now()}`,
-          text: `📝 ${cardsCreated} flashcard${cardsCreated > 1 ? 's' : ''} created! Check the Review tab.`,
-          createdAt: new Date(),
-          user: SENSEI_USER,
-          system: true,
-        };
-        setTimeout(() => {
-          setMessages((prev) => GiftedChat.append(prev, [cardNotif]));
-        }, 500);
-      }
 
       if (progressUpdates > 0) {
         const progressNotif: IMessage = {
@@ -211,7 +198,7 @@ export default function ChatScreen() {
         };
         setTimeout(() => {
           setMessages((prev) => GiftedChat.append(prev, [progressNotif]));
-        }, cardsCreated > 0 ? 1000 : 500);
+        }, 500);
       }
     } catch (error) {
       const errText = error instanceof Error ? error.message : 'Something went wrong.';

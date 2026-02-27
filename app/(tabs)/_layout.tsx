@@ -29,13 +29,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="flashcards"
-        options={{
-          title: 'Review',
-          tabBarIcon: ({ focused }) => <TabIcon name="📚" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
         name="progress"
         options={{
           title: 'Progress',

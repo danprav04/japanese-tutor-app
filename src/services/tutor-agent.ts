@@ -8,11 +8,11 @@
 
 import { initGroqClient, getGroqClient, type ModelType } from './groq-client';
 import { saveCheckpoint, getLatestCheckpoint, listCheckpoints, setThreadTitle } from '../db/checkpointer';
-import { createFlashcard } from './card-service';
-import { buildCurriculumContext, getReviewContext, type CurriculumStatus } from './curriculum-context';
+import { buildCurriculumContext, getReviewContext, type CurriculumStatus, type CurriculumContextResult } from './curriculum-context';
 import { recordAnswer, updateStudyStreak } from './progress-service';
 import { searchNodes } from './curriculum-service';
 import { lookupWord, formatForTutor } from './jisho-service';
+import { getTeachingContext } from './rag-service';
 import {
   detectDocumentLearningIntent,
   resolveDocument,
@@ -25,7 +25,6 @@ import { ConversationMessage, ConversationState } from './tutor/types';
 import { SYSTEM_PROMPT } from './tutor/prompt';
 import {
   normalizeQuotes,
-  parseFlashcards,
   parseProgressMarkers,
   stripThinkingBlocks,
   detectDictionaryQuery
@@ -97,7 +96,6 @@ export function createNewThread(): string {
  */
 export async function sendMessage(threadId: string, userMessage: string): Promise<{
   text: string;
-  cardsCreated: number;
   progressUpdates: number;
   curriculumStatus: CurriculumStatus;
 }> {
@@ -171,6 +169,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   let curriculumContext = '';
   let reviewContext = '';
   let curriculumStatus: CurriculumStatus = 'has_content';
+  let sourceContext = '';
   try {
     const [currResult, reviewResult] = await Promise.all([
       buildCurriculumContext(),
@@ -179,11 +178,23 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     curriculumContext = currResult.context;
     curriculumStatus = currResult.status;
     reviewContext = reviewResult;
+
+    // Pre-fetch source material for target lesson and review nodes
+    if (currResult.targetLessonNodeId || currResult.targetReviewNodeId) {
+      const { lessonContext, reviewContext: reviewSourceCtx } = await getTeachingContext(
+        currResult.targetLessonNodeId,
+        currResult.targetReviewNodeId,
+      );
+      const parts = [lessonContext, reviewSourceCtx].filter(Boolean);
+      if (parts.length > 0) {
+        sourceContext = parts.join('\n\n');
+      }
+    }
   } catch (err) {
     console.warn('Failed to load curriculum/review context:', err);
   }
 
-  const contextParts = [SYSTEM_PROMPT, curriculumContext, reviewContext, documentFocusHint]
+  const contextParts = [SYSTEM_PROMPT, curriculumContext, reviewContext, sourceContext, documentFocusHint]
     .filter(Boolean)
     .join('\n\n');
 
@@ -198,22 +209,10 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   const afterThinking = stripThinkingBlocks(rawResponse);
 
   // Parse embedded blocks — always chain cleaned text forward (no || fallback)
-  const { cleanText: afterFlashcards, cards } = parseFlashcards(afterThinking);
-  const { cleanText: afterProgress, updates } = parseProgressMarkers(afterFlashcards);
+  const { cleanText: afterProgress, updates } = parseProgressMarkers(afterThinking);
   const response = afterProgress || afterThinking;
 
-  console.log(`✂️ Parsed: ${rawResponse.length}→${response.length} chars, ${cards.length} cards, ${updates.length} progress`);
-
-  // Auto-create flashcards
-  let cardsCreated = 0;
-  for (const card of cards) {
-    try {
-      await createFlashcard(card.front, card.back, card.type);
-      cardsCreated++;
-    } catch (err) {
-      console.warn('Failed to create flashcard from chat:', err);
-    }
-  }
+  console.log(`✂️ Parsed: ${rawResponse.length}→${response.length} chars, ${updates.length} progress`);
 
   // Record progress updates (BKT mastery)
   let progressUpdates = 0;
@@ -307,7 +306,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     console.warn('Failed to save conversation checkpoint:', err);
   }
 
-  return { text: response, cardsCreated, progressUpdates, curriculumStatus };
+  return { text: response, progressUpdates, curriculumStatus };
 }
 
 /**

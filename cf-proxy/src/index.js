@@ -1,3 +1,5 @@
+let currentKeyIndex = 0;
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === "OPTIONS") {
@@ -29,10 +31,18 @@ export default {
       // e.g. { model: "qwen-3-32b", messages: [...] }
       const requestBody = await request.text();
 
+      // Load balancing logic
+      const apiKeys = (env.GROQ_API_KEYS || env.GROQ_API_KEY || "").split(',').map(k => k.trim()).filter(Boolean);
+      let apiKey = "";
+      if (apiKeys.length > 0) {
+        apiKey = apiKeys[currentKeyIndex % apiKeys.length];
+        currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
+      }
+
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${env.GROQ_API_KEY}`,
+          "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: requestBody,

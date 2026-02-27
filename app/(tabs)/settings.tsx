@@ -17,9 +17,11 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
     const {
       apiKeys,
       currentModel,
+      extractionModels,
       addApiKey,
       removeApiKey,
       setCurrentModel,
+      toggleExtractionModel,
     } = useAppStore();
   
     const [newKey, setNewKey] = useState('');
@@ -28,6 +30,16 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
     const [progressMessage, setProgressMessage] = useState('');
     const [uploadedDocs, setUploadedDocs] = useState<Array<{ documentId: string; filename: string; processed: number }>>([]);
     const abortController = useRef<AbortController | null>(null);
+    const [visibleKeys, setVisibleKeys] = useState<Set<number>>(new Set());
+
+    const toggleKeyVisibility = (index: number) => {
+      setVisibleKeys(prev => {
+        const next = new Set(prev);
+        if (next.has(index)) next.delete(index);
+        else next.add(index);
+        return next;
+      });
+    };
   
     const loadDocuments = useCallback(async () => {
         try {
@@ -104,10 +116,10 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
         if (!result.canceled && result.assets[0]) {
           const file = result.assets[0];
   
-          if (!useAppStore.getState().isGeminiReady) {
-            Alert.alert('API Key Required', 'Please add an API key first to process documents.');
-            return;
-          }
+          // if (!useAppStore.getState().isGeminiReady) {
+          //   Alert.alert('API Key Required', 'Please add an API key first to process documents.');
+          //   return;
+          // }
   
           Alert.alert(
             'Process File',
@@ -189,7 +201,7 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
   const handleDeleteAllCurriculum = () => {
     Alert.alert(
       '💣 Delete All Curriculum',
-      'Are you sure? This will delete EVERYTHING: all lessons, vocabulary, flashcards, documents, and progress. The app will be reset to a fresh state.',
+      'Are you sure? This will delete EVERYTHING: all lessons, vocabulary, documents, and progress. The app will be reset to a fresh state.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -298,16 +310,26 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
             </TouchableOpacity>
           </View>
 
-          {apiKeys.map((key, index) => (
-            <View key={index} style={styles.keyItem}>
-              <Text style={styles.keyText}>
-                Key {index + 1}: ••••{key.slice(-8)}
-              </Text>
-              <TouchableOpacity onPress={() => handleRemoveKey(index)}>
-                <Text style={styles.removeText}>Remove</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+          {apiKeys.map((key, index) => {
+            const isVisible = visibleKeys.has(index);
+            return (
+              <View key={index} style={styles.keyItem}>
+                <View style={{ flex: 1, marginRight: 10 }}>
+                  <Text style={styles.keyText} selectable={isVisible}>
+                    Key {index + 1}: {isVisible ? key : `••••${key.slice(-8)}`}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => toggleKeyVisibility(index)}>
+                    <Text style={styles.actionText}>{isVisible ? 'Hide' : 'Show'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleRemoveKey(index)}>
+                    <Text style={styles.removeText}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
 
           {apiKeys.length === 0 && (
             <Text style={styles.noKeysText}>
@@ -371,10 +393,32 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
           <Text style={styles.sectionTitle}>📄 Upload Materials</Text>
           <Text style={styles.sectionSubtitle}>
             Upload PDFs, text files, or markdown to expand your curriculum.
-            {'\n'}Note: This process automatically rotates between 'llama-3.3-70b', 'llama-3.1-8b', and 'kimi-k2' to distribute API load and maximize quality.
+            {'\n'}Select which models to use for extraction below.
           </Text>
 
-          {apiKeys.length === 0 ? (
+          {/* Extraction Model Checklist */}
+          <View style={styles.extractionModelList}>
+            <Text style={styles.subHeader}>Extraction Models</Text>
+            {(Object.keys(MODEL_RATES) as ModelType[]).map((model) => {
+              const isChecked = extractionModels.includes(model);
+              return (
+                <TouchableOpacity
+                  key={model}
+                  style={styles.extractionModelRow}
+                  onPress={() => toggleExtractionModel(model)}
+                >
+                  <View style={[styles.checkbox, isChecked && styles.checkboxChecked]}>
+                    {isChecked && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={[styles.extractionModelName, !isChecked && styles.extractionModelDimmed]}>
+                    {model}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* BYOK block disabled */ false && apiKeys.length === 0 ? (
             <View style={styles.lockedContainer}>
               <Text style={styles.lockedIcon}>🔒</Text>
               <Text style={styles.lockedTitle}>BYOK Required</Text>
@@ -568,6 +612,10 @@ const styles = StyleSheet.create({
   },
   keyText: {
     color: '#fff',
+    fontSize: 14,
+  },
+  actionText: {
+    color: '#6366f1',
     fontSize: 14,
   },
   removeText: {
@@ -798,14 +846,51 @@ const styles = StyleSheet.create({
   },
   lockedTitle: {
     color: '#fff',
-    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 6,
+    fontSize: 16,
+    marginBottom: 4,
   },
   lockedText: {
     color: '#888',
-    fontSize: 14,
+    fontSize: 13,
     textAlign: 'center',
-    lineHeight: 20,
+  },
+  extractionModelList: {
+    marginBottom: 16,
+  },
+  extractionModelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 10,
+    marginBottom: 6,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  checkboxChecked: {
+    borderColor: '#6366f1',
+    backgroundColor: '#6366f1',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  extractionModelName: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  extractionModelDimmed: {
+    color: '#666',
   },
 });

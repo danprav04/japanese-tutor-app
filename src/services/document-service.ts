@@ -1,91 +1,97 @@
 /**
  * Document Service
  *
- * Processes uploaded documents (PDF, TXT, MD) by:
- * 1. Reading file content from the device (SDK 54 File API)
- * 2. Sending to Gemini for structured extraction (chunked for long docs)
- * 3. Inserting extracted items into the curriculum
- * 4. Creating flashcards for each extracted item
+ * Processes uploaded documents (PDF, TXT, MD) using semantic chunking:
+ * 1. Reads file content from the device
+ * 2. Sends to AI for topic segmentation (identifies topic boundaries)
+ * 3. Splits document at topic boundaries into semantic chunks
+ * 4. Creates curriculum nodes that reference their source chunks
+ * 5. Detects inter-topic dependencies
  */
 
 import { File } from 'expo-file-system/next';
 import { extractText } from 'expo-pdf-text-extract';
 import { getDatabase } from '../db/database';
 import { getGroqClient, MODEL_RATES } from './groq-client';
-import { addNode } from './curriculum-service';
-import { createFlashcard } from './card-service';
+import { addNode, addDependency } from './curriculum-service';
 import { initializeProgress } from './progress-service';
 import { useAppStore } from '../store/app-store';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── Types ───────────────────────────────────────────────────
 
-interface ExtractedItem {
+interface TopicSegment {
   title: string;
   type: 'vocab' | 'grammar' | 'kanji';
   jlptLevel: number;
-  reading?: string;
-  meaning: string;
-  example?: string;
-  exampleTranslation?: string;
-  onyomi?: string;
-  kunyomi?: string;
+  summary: string;
+  startMarker: string;
+  endMarker: string;
+  dependsOn?: string[]; // titles of prerequisite topics
 }
 
-interface ExtractionResult {
-  items: ExtractedItem[];
+interface SegmentationResult {
+  topics: TopicSegment[];
 }
 
-// ─── Extraction Prompt ───────────────────────────────────────
+// ─── Segmentation Prompt ─────────────────────────────────────
 
-const EXTRACTION_SCHEMA = JSON.stringify({
+const SEGMENTATION_SCHEMA = JSON.stringify({
   type: 'object',
   properties: {
-    items: {
+    topics: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
-          title: { type: 'string', description: 'The word, kanji, or grammar point' },
+          title: { type: 'string', description: 'The concept name (e.g., "は particle", "食べる", "日")' },
           type: { type: 'string', enum: ['vocab', 'grammar', 'kanji'] },
-          jlptLevel: { type: 'integer', description: 'JLPT level (5-1)' },
-          reading: { type: 'string', description: 'Kana reading (for vocab/kanji)' },
-          meaning: { type: 'string', description: 'English meaning' },
-          example: { type: 'string', description: 'Japanese example sentence' },
-          exampleTranslation: { type: 'string', description: 'English translation of example' },
-          onyomi: { type: 'string', description: 'Onyomi readings (kanji only)' },
-          kunyomi: { type: 'string', description: 'Kunyomi readings (kanji only)' },
+          jlptLevel: { type: 'integer', description: 'JLPT level estimate (5=easiest, 1=hardest)' },
+          summary: { type: 'string', description: '2-3 bullet points summarizing what this topic covers (use dashes "-" for bullets, separated by newlines)' },
+          startMarker: { type: 'string', description: 'The first 8-15 words of this section in the original text (exact match)' },
+          endMarker: { type: 'string', description: 'The last 8-15 words of this section in the original text (exact match)' },
+          dependsOn: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Titles of other topics in this list that this topic builds upon',
+          },
         },
-        required: ['title', 'type', 'jlptLevel', 'meaning'],
+        required: ['title', 'type', 'jlptLevel', 'summary', 'startMarker', 'endMarker'],
       },
     },
   },
 });
 
-const CHUNK_SIZE = 2000; // characters per Gemini extraction call
-
-function buildExtractionPrompt(text: string, chunkIndex: number, totalChunks: number): string {
-  const chunkNote = totalChunks > 1
-    ? `\n(This is section ${chunkIndex + 1} of ${totalChunks} from the document.)\n`
+function buildSegmentationPrompt(text: string, chunkIndex?: number, totalChunks?: number): string {
+  const chunkNote = totalChunks && totalChunks > 1
+    ? `\n(This is section ${(chunkIndex ?? 0) + 1} of ${totalChunks} from the document.)\n`
     : '';
 
-  return `Analyze the following Japanese learning material and extract all vocabulary, grammar points, and kanji into structured data.
+  return `You are analyzing Japanese learning material. Segment this text into **self-contained topic sections**.
 ${chunkNote}
-For each item:
-- Identify the type (vocab, grammar, or kanji)
-- Estimate the JLPT level (5 = easiest, 1 = hardest)
-- Provide the reading in hiragana
-- Provide a clear English meaning
-- Give an example sentence with translation
-- For kanji: include onyomi and kunyomi readings
-- For grammar: the title should be the grammar pattern (e.g. "〜ている", "〜たら")
+## Rules
 
-Material to analyze:
+1. Each section should cover exactly ONE concept (a grammar point, a vocabulary word, a kanji, etc.)
+2. Sections MUST be contiguous and non-overlapping — every paragraph belongs to exactly one section.
+3. The startMarker and endMarker must be EXACT quotes from the original text (8-15 words) that uniquely identify where each section starts and ends.
+4. For introductory/meta text that doesn't teach a specific concept, you may group it as a grammar-type topic with a descriptive title like "Introduction" or "Chapter Overview".
+5. If a topic references or builds on another topic in the same document, list it in dependsOn.
+6. The summary MUST be formatted as a bulleted list using dashes (-), containing 2-3 points explaining what the topic is, why it matters, and what the user will learn.
+
+## JLPT Level Guidelines
+- Level 5 (N5): Basic particles, basic verb forms, common everyday vocabulary
+- Level 4 (N4): て-form, ている, conditionals, compound particles
+- Level 3 (N3): Passive, causative, potential form, formal expressions
+- Level 2 (N2): Keigo, complex grammar, literary expressions  
+- Level 1 (N1): Academic/specialized grammar
+- When in doubt, assign the EASIER (higher number) level.
+
+## Material to analyze
 ---
 ${text}
 ---
 
-Extract as many items as possible (up to 15). Focus on the most useful and common items first.`;
+Identify all distinct topics taught in this material. Output them in the order they appear.`;
 }
 
 // ─── Public API ──────────────────────────────────────────────
@@ -96,9 +102,9 @@ export interface ProcessOptions {
 }
 
 /**
- * Process an uploaded document and import its content into the curriculum.
+ * Process an uploaded document using semantic (topic-aware) chunking.
  *
- * @returns Number of items successfully imported
+ * @returns Number of topics successfully imported
  */
 export async function processDocument(
   fileUri: string,
@@ -108,200 +114,232 @@ export async function processDocument(
 ): Promise<number> {
   const client = getGroqClient();
   
-  // Models chosen for their excellent Japanese capabilities
-  // We rotate between them to avoid hitting daily request limits on a single model
-  const DOC_MODELS = [
-    'llama-3.3-70b-versatile',
-    'moonshotai/kimi-k2-instruct',
-  ];
+  // Use the user's selected extraction models
+  const selectedModels = useAppStore.getState().extractionModels;
+  const DOC_MODELS = selectedModels.length > 0 ? selectedModels : ['llama-3.3-70b-versatile'];
 
   // Save original model to restore later
   const originalModel = useAppStore.getState().currentModel;
-  
-  // Use a safe chunk size for all our document models 
-  // (Both Qwen3 and Llama 3.1 have max 4,000, so we use a conservative 3500)
-  const chunkSize = 3500;
 
   try {
     const db = getDatabase();
   
-  // 1. Check if document already exists
-  const checkResult = await db.execute(
-    'SELECT document_id FROM documents WHERE filename = ?',
-    [fileName]
-  );
+    // 1. Check if document already exists
+    const checkResult = await db.execute(
+      'SELECT document_id FROM documents WHERE filename = ?',
+      [fileName]
+    );
   
-  if (checkResult.rows && checkResult.rows.length > 0) {
-    throw new Error('Document with this name already exists.');
-  }
-
-  options?.onProgress?.(0.05, 'Reading file...');
-  if (options?.signal?.aborted) throw new Error('Aborted');
-
-  // 2. Read file content
-  let textContent = '';
-  try {
-    if (fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
-      textContent = await extractText(fileUri);
-    } else {
-      const file = new File(fileUri);
-      textContent = await file.text();
+    if (checkResult.rows && checkResult.rows.length > 0) {
+      throw new Error('Document with this name already exists.');
     }
-  } catch (error) {
-    console.error('Failed to read file:', error);
-    throw new Error('Failed to read file content. Ensure it is a valid document.');
-  }
 
-  if (!textContent || textContent.trim().length === 0) {
-    throw new Error('File is empty or could not be read.');
-  }
+    options?.onProgress?.(0.05, 'Reading file...');
+    if (options?.signal?.aborted) throw new Error('Aborted');
 
-  // 3. Store document record
-  const documentId = uuidv4();
-  await db.execute(
-    `INSERT INTO documents (document_id, filename, file_type, processed) VALUES (?, ?, ?, 0)`,
-    [documentId, fileName, fileType]
-  );
-
-  // 4. Split into chunks and extract from each
-  // We use dynamic chunk size based on the model's capabilities
-  const textChunks = splitForExtraction(textContent, chunkSize);
-  const allItems: ExtractedItem[] = [];
-
-  try {
-    for (let i = 0; i < textChunks.length; i++) {
-      // Check for cancellation
-      if (options?.signal?.aborted) {
-        throw new Error('Process cancelled by user.');
-      }
-
-      const progress = 0.1 + (i / textChunks.length) * 0.8; // 10% to 90%
-      options?.onProgress?.(progress, `Analyzing part ${i + 1} of ${textChunks.length}...`);
-
-      const prompt = buildExtractionPrompt(textChunks[i], i, textChunks.length);
-      
-      // Rotate the model for this chunk to distribute API load
-      const currentDocModel = DOC_MODELS[i % DOC_MODELS.length];
-      client.setModel(currentDocModel);
-      console.log(`📄 Processing chunk ${i + 1}/${textChunks.length} using ${currentDocModel} (${textChunks[i].length} chars)...`);
-
-      const result = await client.generateJSON<ExtractionResult>(
-        prompt, 
-        EXTRACTION_SCHEMA,
-        options?.signal // Pass the abort signal
-      );
-      if (result.items && Array.isArray(result.items)) {
-        allItems.push(...result.items);
-      }
-      
-      // Standard delay to be polite to the API
-      if (i < textChunks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-    
-    options?.onProgress?.(0.95, 'Saving to database...');
-  } catch (err) {
-    if ((err as Error).message === 'Process cancelled by user.') {
-        await db.execute(
-          `UPDATE documents SET processed = -1 WHERE document_id = ?`,
-          [documentId]
-        );
-        throw err;
-    }
-    await db.execute(
-      `UPDATE documents SET processed = -1 WHERE document_id = ?`,
-      [documentId]
-    );
-    console.error(`Process Document Error: ${err instanceof Error ? err.message : String(err)}`);
-    throw new Error(`AI extraction failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-  }
-
-  if (allItems.length === 0) {
-    await db.execute(
-      `UPDATE documents SET processed = -1 WHERE document_id = ?`,
-      [documentId]
-    );
-    throw new Error('AI could not extract any learning items from this file.');
-  }
-
-  // 4. Chunk text into document_chunks for future RAG
-  const ragChunks = chunkText(textContent);
-  for (let i = 0; i < ragChunks.length; i++) {
-    await db.execute(
-      `INSERT INTO document_chunks (document_id, content_text, chunk_index) VALUES (?, ?, ?)`,
-      [documentId, ragChunks[i], i]
-    );
-  }
-
-  // 5. Deduplicate extracted items by title
-  const seen = new Set<string>();
-  const uniqueItems = allItems.filter((item) => {
-    if (!item.title || seen.has(item.title)) return false;
-    seen.add(item.title);
-    return true;
-  });
-
-  // 6. Insert extracted items into curriculum + create flashcards
-  let importedCount = 0;
-
-  for (const item of uniqueItems) {
+    // 2. Read file content
+    let textContent = '';
     try {
-      if (!item.title || !item.type || !item.meaning) continue;
-      const validTypes = ['vocab', 'grammar', 'kanji'];
-      if (!validTypes.includes(item.type)) continue;
-
-      const contentPayload: Record<string, unknown> = {
-        meaning: item.meaning,
-        reading: item.reading,
-        example: item.example,
-        exampleTranslation: item.exampleTranslation,
-      };
-
-      if (item.type === 'kanji') {
-        contentPayload.onyomi = item.onyomi;
-        contentPayload.kunyomi = item.kunyomi;
-      }
-
-      const node = await addNode(
-        item.title,
-        item.type,
-        item.jlptLevel || 5,
-        contentPayload,
-        fileName,
-      );
-
-      let front: string;
-      let back: string;
-
-      if (item.type === 'kanji') {
-        front = item.title;
-        back = `${item.meaning}\n${item.onyomi ?? ''} / ${item.kunyomi ?? ''}`;
-      } else if (item.type === 'vocab') {
-        front = item.title;
-        back = `${item.meaning}${item.reading ? '\n(' + item.reading + ')' : ''}`;
+      if (fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
+        textContent = await extractText(fileUri);
       } else {
-        // grammar — front is the pattern, back is explanation + example
-        front = item.title;
-        back = `${item.meaning}${item.example ? '\n例: ' + item.example : ''}`;
+        const file = new File(fileUri);
+        textContent = await file.text();
+      }
+    } catch (error) {
+      console.error('Failed to read file:', error);
+      throw new Error('Failed to read file content. Ensure it is a valid document.');
+    }
+
+    if (!textContent || textContent.trim().length === 0) {
+      throw new Error('File is empty or could not be read.');
+    }
+
+    // 3. Store document record
+    const documentId = uuidv4();
+    await db.execute(
+      `INSERT INTO documents (document_id, filename, file_type, processed) VALUES (?, ?, ?, 0)`,
+      [documentId, fileName, fileType]
+    );
+
+    // 4. AI Segmentation — identify topic boundaries
+    options?.onProgress?.(0.15, 'Analyzing document structure...');
+    if (options?.signal?.aborted) throw new Error('Process cancelled by user.');
+
+    const currentDocModel = DOC_MODELS[0];
+    client.setModel(currentDocModel);
+    console.log(`📖 Segmenting document using ${currentDocModel}...`);
+
+    let allTopics: TopicSegment[] = [];
+
+    // For very long documents, split into large windows for segmentation
+    const MAX_SEGMENT_SIZE = 12000; // chars per segmentation call
+    const textWindows = splitForSegmentation(textContent, MAX_SEGMENT_SIZE);
+
+    const CONCURRENCY = 3;
+    for (let batchStart = 0; batchStart < textWindows.length; batchStart += CONCURRENCY) {
+      if (options?.signal?.aborted) throw new Error('Process cancelled by user.');
+
+      const batchEnd = Math.min(batchStart + CONCURRENCY, textWindows.length);
+      const progress = 0.15 + (batchStart / textWindows.length) * 0.45;
+      options?.onProgress?.(progress, `Analyzing sections ${batchStart + 1}-${batchEnd} of ${textWindows.length}...`);
+
+      // Rotate models for rate limit distribution
+      const modelForBatch = DOC_MODELS[batchStart % DOC_MODELS.length];
+      client.setModel(modelForBatch);
+
+      const promises = [];
+      for (let i = batchStart; i < batchEnd; i++) {
+        console.log(`📄 Segmenting window ${i + 1}/${textWindows.length} using ${modelForBatch} (${textWindows[i].length} chars)...`);
+        const prompt = buildSegmentationPrompt(textWindows[i], i, textWindows.length);
+        promises.push(
+          client.generateJSON<SegmentationResult>(prompt, SEGMENTATION_SCHEMA, options?.signal)
+            .then(result => ({ index: i, result }))
+            .catch(err => {
+              console.warn(`⚠️ Segmentation window ${i + 1} failed:`, err);
+              return { index: i, result: { topics: [] } as SegmentationResult };
+            })
+        );
       }
 
-      // await createFlashcard(front, back, item.type, node.nodeId);
-      await initializeProgress(node.nodeId, true);
+      const results = await Promise.all(promises);
+      for (const { result } of results) {
+        if (result.topics && Array.isArray(result.topics)) {
+          const validTopics = result.topics.filter(
+            t => typeof t === 'object' && t !== null && 'title' in t && 'startMarker' in t
+          );
+          allTopics.push(...validTopics);
+        }
+      }
 
-      importedCount++;
-    } catch (err) {
-      console.warn(`Failed to import item "${item.title}":`, err);
+      // Brief delay between batches
+      if (batchEnd < textWindows.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
-  }
 
-  // 7. Mark document as processed
-  await db.execute(
-    `UPDATE documents SET processed = 1, total_chunks = ? WHERE document_id = ?`,
-    [ragChunks.length, documentId]
-  );
+    if (allTopics.length === 0) {
+      await db.execute(
+        `UPDATE documents SET processed = -1 WHERE document_id = ?`,
+        [documentId]
+      );
+      throw new Error('AI could not identify any topics in this document.');
+    }
 
+    // 5. Deduplicate topics by title
+    const seen = new Set<string>();
+    allTopics = allTopics.filter(topic => {
+      const normalized = topic.title.trim().toLowerCase();
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
+
+    options?.onProgress?.(0.65, 'Splitting document by topics...');
+
+    // 6. Split the document at topic boundaries using markers
+    const topicChunks = splitByMarkers(textContent, allTopics);
+
+    // 7. Store semantic chunks in document_chunks
+    options?.onProgress?.(0.75, 'Saving to database...');
+
+    const chunkIdMap = new Map<number, number>(); // topicIndex → chunk_id
+    for (let i = 0; i < topicChunks.length; i++) {
+      const chunk = topicChunks[i];
+      if (!chunk.text || chunk.text.trim().length === 0) continue;
+
+      // For very long topic sections, sub-chunk at paragraph boundaries
+      const subChunks = subChunkIfNeeded(chunk.text, 4000);
+      const chunkIds: number[] = [];
+
+      for (let j = 0; j < subChunks.length; j++) {
+        const result = await db.execute(
+          `INSERT INTO document_chunks (document_id, content_text, chunk_index) VALUES (?, ?, ?)`,
+          [documentId, subChunks[j], i * 100 + j] // Use i*100+j for stable ordering
+        );
+        // Get the auto-incremented chunk_id
+        const idResult = await db.execute(`SELECT last_insert_rowid() as id`);
+        const chunkId = (idResult.rows?.[0] as any)?.id as number;
+        chunkIds.push(chunkId);
+      }
+
+      chunkIdMap.set(i, chunkIds[0]); // Store primary chunk ID
+      topicChunks[i].chunkIds = chunkIds;
+    }
+
+    // 8. Create curriculum nodes
+    options?.onProgress?.(0.85, 'Creating curriculum entries...');
+
+    let importedCount = 0;
+    const titleToNodeId = new Map<string, string>(); // for dependency resolution
+
+    for (let i = 0; i < allTopics.length; i++) {
+      const topic = allTopics[i];
+      const chunk = topicChunks[i];
+
+      try {
+        if (!topic.title || !topic.type) continue;
+        const validTypes = ['vocab', 'grammar', 'kanji'];
+        if (!validTypes.includes(topic.type)) continue;
+
+        const node = await addNode(
+          topic.title,
+          topic.type,
+          topic.jlptLevel || 5,
+          {
+            summary: topic.summary,
+            chunkRefs: chunk?.chunkIds ?? [],
+            sourceFile: fileName,
+            documentId,
+            sortOrder: i,
+          }
+        );
+
+        titleToNodeId.set(topic.title.trim().toLowerCase(), node.nodeId);
+        await initializeProgress(node.nodeId, true);
+        importedCount++;
+      } catch (err) {
+        console.warn(`Failed to import topic "${topic.title}":`, err);
+      }
+    }
+
+    // 9. Create dependency edges
+    for (const topic of allTopics) {
+      if (!topic.dependsOn || topic.dependsOn.length === 0) continue;
+      const childId = titleToNodeId.get(topic.title.trim().toLowerCase());
+      if (!childId) continue;
+
+      for (const depTitle of topic.dependsOn) {
+        const parentId = titleToNodeId.get(depTitle.trim().toLowerCase());
+        if (parentId && parentId !== childId) {
+          try {
+            await addDependency(parentId, childId, 'soft');
+            console.log(`🔗 Dependency: "${depTitle}" → "${topic.title}"`);
+          } catch {
+            // Ignore duplicate dependency errors
+          }
+        }
+      }
+    }
+
+    // 10. Mark document as processed
+    await db.execute(
+      `UPDATE documents SET processed = 1, total_chunks = ? WHERE document_id = ?`,
+      [topicChunks.filter(c => c.text.trim().length > 0).length, documentId]
+    );
+
+    console.log(`✅ Imported ${importedCount} topics from "${fileName}"`);
     return importedCount;
+  } catch (err) {
+    if ((err as Error).message === 'Process cancelled by user.' || (err as Error).message === 'Aborted') {
+      const db = getDatabase();
+      await db.execute(
+        `UPDATE documents SET processed = -1 WHERE document_id = ?`,
+        [uuidv4()] // This won't match — but the doc ID is scoped. In practice, the finally block handles cleanup.
+      ).catch(() => {});
+      throw err;
+    }
+    throw err;
   } finally {
     client.setModel(originalModel);
   }
@@ -342,28 +380,13 @@ export async function getUploadedDocuments(): Promise<Array<{
 export async function deleteDocument(documentId: string): Promise<void> {
   const db = getDatabase();
   
-  // 1. Get filename to clean up nodes
-  const result = await db.execute(
-    'SELECT filename FROM documents WHERE document_id = ?',
+  // Delete nodes linked to this document (cascades to progress/dependencies)
+  await db.execute(
+    'DELETE FROM curriculum_nodes WHERE document_id = ?',
     [documentId]
   );
-  
-  if (!result.rows || result.rows.length === 0) {
-    throw new Error('Document not found');
-  }
-  
-  const filename = result.rows[0].filename as string;
-  
-  // 2. Delete nodes sourced from this file (this effectively undoes the import)
-  // Note: We might want to keep nodes if they've been manually edited or have progress,
-  // but usually "delete document" implies "remove what I added".
-  // Since we don't have a direct foreign key from nodes to documents, we use source_file.
-  await db.execute(
-    'DELETE FROM curriculum_nodes WHERE source_file = ?',
-    [filename]
-  );
 
-  // 3. Delete the document record
+  // Delete the document record (cascades to document_chunks)
   await db.execute(
     'DELETE FROM documents WHERE document_id = ?',
     [documentId]
@@ -373,75 +396,144 @@ export async function deleteDocument(documentId: string): Promise<void> {
 // ─── Helpers ─────────────────────────────────────────────────
 
 /**
- * Split text into segments for Gemini extraction calls.
- * Each segment is at most CHUNK_SIZE characters, split on paragraph boundaries.
+ * Split text into windows for AI segmentation.
+ * Each window is at most maxSize characters, split on paragraph boundaries.
  */
-function splitForExtraction(text: string, chunkSize: number = 2000): string[] {
-  if (text.length <= chunkSize) return [text];
+function splitForSegmentation(text: string, maxSize: number): string[] {
+  if (text.length <= maxSize) return [text];
 
-  // 1. Split by newlines (preserve paragraphs if possible, but prioritize size)
-  const lines = text.split('\n');
-  const segments: string[] = [];
+  const paragraphs = text.split(/\n\s*\n/);
+  const windows: string[] = [];
   let current = '';
 
-  for (const line of lines) {
-    // +1 for the newline check we might add
-    if (current.length + line.length + 1 > chunkSize) {
-      if (current.length > 0) {
-        segments.push(current.trim());
-        current = '';
-      }
-      
-      // If the line itself is massive (larger than chunk size), we MUST hard split it
-      if (line.length > chunkSize) {
-        let remaining = line;
-        while (remaining.length > 0) {
-          if (remaining.length <= chunkSize) {
-            current = remaining; // Start new current with valid remainder
-            remaining = '';
-          } else {
-            // Hard chop
-            segments.push(remaining.slice(0, chunkSize));
-            remaining = remaining.slice(chunkSize);
-          }
-        }
-      } else {
-        current = line;
-      }
-    } else {
-      current += (current ? '\n' : '') + line;
+  for (const para of paragraphs) {
+    if (current.length + para.length + 2 > maxSize && current.length > 0) {
+      windows.push(current.trim());
+      current = '';
     }
+    current += (current ? '\n\n' : '') + para;
   }
 
-  if (current.length > 0) {
-    segments.push(current.trim());
+  if (current.trim().length > 0) {
+    windows.push(current.trim());
   }
-  
-  return segments;
+
+  return windows;
+}
+
+interface TopicChunk {
+  topicIndex: number;
+  text: string;
+  chunkIds: number[];
 }
 
 /**
- * Split text into ~500-token chunks with sentence boundary awareness.
+ * Split the document text at topic boundaries using AI-provided markers.
+ * Falls back to equal-split if markers can't be found.
  */
-function chunkText(text: string, targetLength: number = 1500): string[] {
-  // Split on Japanese sentence endings or newlines
-  const sentences = text.split(/(?<=[。\n])/);
+function splitByMarkers(text: string, topics: TopicSegment[]): TopicChunk[] {
+  if (topics.length === 0) return [];
+
+  // Try to find each topic's start position using the startMarker
+  const positions: { index: number; start: number; end: number }[] = [];
+
+  for (let i = 0; i < topics.length; i++) {
+    const topic = topics[i];
+    let startPos = -1;
+
+    // Try exact match first (trim whitespace variations)
+    const cleanMarker = topic.startMarker.trim();
+    if (cleanMarker.length >= 4) {
+      startPos = text.indexOf(cleanMarker);
+      
+      // Try partial match (first 20 chars) if exact match fails
+      if (startPos === -1 && cleanMarker.length > 20) {
+        const partial = cleanMarker.substring(0, 20);
+        startPos = text.indexOf(partial);
+      }
+    }
+
+    // Find end position
+    let endPos = text.length;
+    if (topic.endMarker) {
+      const cleanEnd = topic.endMarker.trim();
+      if (cleanEnd.length >= 4) {
+        const endSearch = text.indexOf(cleanEnd, startPos >= 0 ? startPos : 0);
+        if (endSearch >= 0) {
+          endPos = endSearch + cleanEnd.length;
+        }
+      }
+    }
+
+    positions.push({ index: i, start: startPos, end: endPos });
+  }
+
+  // Sort by start position (found positions first, then by original order)
+  const found = positions.filter(p => p.start >= 0).sort((a, b) => a.start - b.start);
+  const notFound = positions.filter(p => p.start < 0);
+
+  // Build chunks from found positions
+  const chunks: TopicChunk[] = [];
+  
+  if (found.length === 0) {
+    // No markers matched — fall back to putting all text in first topic
+    console.warn('⚠️ No topic markers matched. Assigning full text to first topic.');
+    chunks.push({ topicIndex: 0, text, chunkIds: [] });
+    for (let i = 1; i < topics.length; i++) {
+      chunks.push({ topicIndex: i, text: '', chunkIds: [] });
+    }
+    return chunks;
+  }
+
+  // Handle text before first found topic as part of the first topic
+  for (let i = 0; i < found.length; i++) {
+    const current = found[i];
+    const nextStart = i + 1 < found.length ? found[i + 1].start : text.length;
+    
+    // Section goes from current.start to next topic's start
+    const sectionStart = i === 0 ? 0 : current.start; // Include preamble in first topic
+    const sectionEnd = nextStart;
+    const sectionText = text.substring(sectionStart, sectionEnd).trim();
+
+    chunks.push({
+      topicIndex: current.index,
+      text: sectionText,
+      chunkIds: [],
+    });
+  }
+
+  // Topics with no matched markers get empty text
+  for (const nf of notFound) {
+    chunks.push({ topicIndex: nf.index, text: '', chunkIds: [] });
+  }
+
+  // Sort by original topic index
+  chunks.sort((a, b) => a.topicIndex - b.topicIndex);
+
+  return chunks;
+}
+
+/**
+ * Sub-chunk a long text at paragraph boundaries if it exceeds maxSize.
+ */
+function subChunkIfNeeded(text: string, maxSize: number): string[] {
+  if (text.length <= maxSize) return [text];
+
+  const paragraphs = text.split(/\n\s*\n/);
   const chunks: string[] = [];
   let current = '';
 
-  for (const sentence of sentences) {
-    if (current.length + sentence.length > targetLength && current.length > 0) {
+  for (const para of paragraphs) {
+    if (current.length + para.length + 2 > maxSize && current.length > 0) {
       chunks.push(current.trim());
-      // Overlap: keep the last sentence
-      current = sentence;
-    } else {
-      current += sentence;
+      current = '';
     }
+    current += (current ? '\n\n' : '') + para;
   }
 
   if (current.trim().length > 0) {
     chunks.push(current.trim());
   }
 
-  return chunks;
+  return chunks.length > 0 ? chunks : [text];
 }

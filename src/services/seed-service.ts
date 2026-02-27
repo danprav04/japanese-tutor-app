@@ -9,7 +9,6 @@
 import { getDatabase } from '../db/database';
 import { STARTER_CURRICULUM } from '../data/starter-curriculum';
 import { addNode } from './curriculum-service';
-import { createFlashcard } from './card-service';
 import { initializeProgress } from './progress-service';
 
 /**
@@ -36,36 +35,21 @@ export async function seedStarterCurriculum(): Promise<void> {
 
     let seededCount = 0;
 
-    for (const item of STARTER_CURRICULUM) {
+    for (const [index, item] of STARTER_CURRICULUM.entries()) {
       try {
         // 1. Add curriculum node
         const node = await addNode(
           item.title,
           item.type,
           item.jlptLevel,
-          item.content as Record<string, unknown>,
-          'Initial Set'
+          {
+            summary: item.summary,
+            sourceFile: 'Initial Set',
+            sortOrder: index,
+          }
         );
 
-        // 2. Create a flashcard from this node
-        let front: string;
-        let back: string;
-
-        if (item.type === 'kanji') {
-          front = item.title;
-          back = `${item.content.meaning}\n${item.content.onyomi ?? ''} / ${item.content.kunyomi ?? ''}`;
-        } else if (item.type === 'vocab') {
-          front = item.title;
-          back = `${item.content.meaning}${item.content.reading ? '\n(' + item.content.reading + ')' : ''}`;
-        } else {
-          // grammar
-          front = item.title;
-          back = `${item.content.meaning}\n${item.content.example ?? ''}`;
-        }
-
-        // await createFlashcard(front, back, item.type, node.nodeId);
-
-        // 3. Initialize BKT progress (unlocked for N5 starters)
+        // Initialize BKT progress (unlocked for N5 starters)
         await initializeProgress(node.nodeId, true);
 
         seededCount++;
