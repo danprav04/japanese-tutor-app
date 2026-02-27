@@ -98,6 +98,10 @@ ${chunkNote}
    - For kanji: include onyomi and kunyomi readings
    - For grammar: the title should be the grammar pattern (e.g. "〜だ", "〜じゃない")
 
+5. **Title formatting**: Use ONLY the Japanese word/pattern as the title. Do NOT add bracket annotations like 【reading】 to titles — put readings in the "reading" field instead.
+
+6. **Avoid duplicates across sections**: If a word or grammar point was already covered earlier in the text, do NOT extract it again.
+
 Material to analyze:
 ---
 ${text}
@@ -251,11 +255,23 @@ export async function processDocument(
     );
   }
 
-  // 5. Deduplicate extracted items by title
+  // 5. Deduplicate extracted items by normalized title
+  // Handles near-duplicates like "学生" vs "学生【がくせい】", "〜じゃない" vs "じゃない"
   const seen = new Set<string>();
+  const normalizeTitle = (title: string): string => {
+    return title
+      .replace(/【[^】]*】/g, '')  // Remove 【...】 bracket annotations
+      .replace(/^[〜～~]+/, '')     // Remove leading tilde variations
+      .replace(/\s+/g, '')          // Remove whitespace
+      .trim();
+  };
   const uniqueItems = allItems.filter((item) => {
-    if (!item.title || seen.has(item.title)) return false;
-    seen.add(item.title);
+    if (!item.title) return false;
+    // Also strip brackets from the title itself before inserting
+    item.title = item.title.replace(/【[^】]*】/g, '').trim();
+    const normalized = normalizeTitle(item.title);
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
     return true;
   });
 

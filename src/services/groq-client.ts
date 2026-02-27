@@ -100,22 +100,27 @@ export class GroqClient {
 
         if (!response.ok) {
           const errText = await response.text();
-          if (response.status === 429 && attempt < maxRetries) {
+          // Retry on 429 (rate limit) or 400 (transient bad request)
+          if ((response.status === 429 || response.status === 400) && attempt < maxRetries) {
             attempt++;
-            let waitMs = 5000;
-            // Extract the suggested wait time from the Groq error if present
-            const msMatch = errText.match(/try again in ([0-9]+)ms/);
-            const sMatch = errText.match(/try again in ([0-9.]+)s/);
+            let waitMs = response.status === 400 ? 3000 : 5000;
             
-            if (msMatch) {
-              waitMs = parseInt(msMatch[1], 10) + 1000; // Add 1s buffer
-            } else if (sMatch) {
-              waitMs = parseFloat(sMatch[1]) * 1000 + 1000;
-            } else {
-              waitMs = attempt * 5000; // Fallback: 5s, 10s...
+            if (response.status === 429) {
+              // Extract the suggested wait time from the Groq error if present
+              const msMatch = errText.match(/try again in ([0-9]+)ms/);
+              const sMatch = errText.match(/try again in ([0-9.]+)s/);
+              
+              if (msMatch) {
+                waitMs = parseInt(msMatch[1], 10) + 1000; // Add 1s buffer
+              } else if (sMatch) {
+                waitMs = parseFloat(sMatch[1]) * 1000 + 1000;
+              } else {
+                waitMs = attempt * 5000; // Fallback: 5s, 10s...
+              }
             }
             
-            console.warn(`⚠️ Rate limit hit. Retrying in ${Math.round(waitMs)}ms (Attempt ${attempt}/${maxRetries})`);
+            const reason = response.status === 429 ? 'Rate limit' : 'Bad request (400)';
+            console.warn(`⚠️ ${reason}. Retrying in ${Math.round(waitMs)}ms (Attempt ${attempt}/${maxRetries})`);
             
             // Wait for the duration, aborting if the user cancels
             await new Promise<void>((resolve, reject) => {
