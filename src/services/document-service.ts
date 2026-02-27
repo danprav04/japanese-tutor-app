@@ -369,8 +369,10 @@ export async function processDocument(
       const results = await Promise.all(promises);
       for (const { index, result } of results) {
         if (result.items && Array.isArray(result.items)) {
-          result.items.forEach(item => { item.sourceChunkIndex = index; });
-          allItems.push(...result.items);
+          // Filter out hallucinated non-object items (e.g., strings)
+          const validItems = result.items.filter(item => typeof item === 'object' && item !== null && 'title' in item);
+          validItems.forEach(item => { item.sourceChunkIndex = index; });
+          allItems.push(...validItems);
         }
       }
 
@@ -478,14 +480,15 @@ export async function processDocument(
       const results = await Promise.all(promises);
       for (const { result, batch } of results) {
         if (result.validatedItems && Array.isArray(result.validatedItems)) {
-          allValidated.push(...result.validatedItems);
+          const validItems = result.validatedItems.filter(item => typeof item === 'object' && item !== null && 'title' in item);
+          allValidated.push(...validItems);
         } else {
           allValidated.push(...batch);
         }
 
         if (result.missingItems && Array.isArray(result.missingItems)) {
           for (const missing of result.missingItems) {
-            if (missing.title && missing.type && missing.meaning) {
+            if (missing && typeof missing === 'object' && missing.title && missing.type && missing.meaning) {
               const normalizedMissing = normalizeTitle(missing.title);
               if (!seen.has(normalizedMissing)) {
                 seen.add(normalizedMissing);
