@@ -17,9 +17,11 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
     const {
       apiKeys,
       currentModel,
+      extractionModels,
       addApiKey,
       removeApiKey,
       setCurrentModel,
+      toggleExtractionModel,
     } = useAppStore();
   
     const [newKey, setNewKey] = useState('');
@@ -371,8 +373,30 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
           <Text style={styles.sectionTitle}>📄 Upload Materials</Text>
           <Text style={styles.sectionSubtitle}>
             Upload PDFs, text files, or markdown to expand your curriculum.
-            {'\n'}Note: This process automatically rotates between 'llama-3.3-70b', 'llama-3.1-8b', and 'kimi-k2' to distribute API load and maximize quality.
+            {'\n'}Select which models to use for extraction below.
           </Text>
+
+          {/* Extraction Model Checklist */}
+          <View style={styles.extractionModelList}>
+            <Text style={styles.subHeader}>Extraction Models</Text>
+            {(Object.keys(MODEL_RATES) as ModelType[]).map((model) => {
+              const isChecked = extractionModels.includes(model);
+              return (
+                <TouchableOpacity
+                  key={model}
+                  style={styles.extractionModelRow}
+                  onPress={() => toggleExtractionModel(model)}
+                >
+                  <View style={[styles.checkbox, isChecked && styles.checkboxChecked]}>
+                    {isChecked && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={[styles.extractionModelName, !isChecked && styles.extractionModelDimmed]}>
+                    {model}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           {apiKeys.length === 0 ? (
             <View style={styles.lockedContainer}>
@@ -798,14 +822,51 @@ const styles = StyleSheet.create({
   },
   lockedTitle: {
     color: '#fff',
-    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 6,
+    fontSize: 16,
+    marginBottom: 4,
   },
   lockedText: {
     color: '#888',
-    fontSize: 14,
+    fontSize: 13,
     textAlign: 'center',
-    lineHeight: 20,
+  },
+  extractionModelList: {
+    marginBottom: 16,
+  },
+  extractionModelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 10,
+    marginBottom: 6,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  checkboxChecked: {
+    borderColor: '#6366f1',
+    backgroundColor: '#6366f1',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  extractionModelName: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  extractionModelDimmed: {
+    color: '#666',
   },
 });

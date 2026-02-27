@@ -69,23 +69,41 @@ function buildExtractionPrompt(text: string, chunkIndex: number, totalChunks: nu
     ? `\n(This is section ${chunkIndex + 1} of ${totalChunks} from the document.)\n`
     : '';
 
-  return `Analyze the following Japanese learning material and extract all vocabulary, grammar points, and kanji into structured data.
+  return `You are a precise Japanese curriculum extractor. Analyze the following Japanese learning material and extract vocabulary, grammar points, and kanji into structured data.
 ${chunkNote}
-For each item:
-- Identify the type (vocab, grammar, or kanji)
-- Estimate the JLPT level (5 = easiest, 1 = hardest)
-- Provide the reading in hiragana
-- Provide a clear English meaning
-- Give an example sentence with translation
-- For kanji: include onyomi and kunyomi readings
-- For grammar: the title should be the grammar pattern (e.g. "〜ている", "〜たら")
+## CRITICAL RULES — READ CAREFULLY
+
+1. **ONLY extract items that are explicitly taught, explained, or listed in the provided text.**
+   - Do NOT add items from your general knowledge of Japanese.
+   - Do NOT infer or predict what grammar/vocab "might come next" in a textbook.
+   - If a grammar pattern is briefly mentioned but NOT explained or taught, do NOT include it.
+
+2. **JLPT Level Assignment — follow these concrete rules:**
+   - Level 5 (N5): Basic particles (は, が, を, も, に, で, へ), state-of-being (だ, じゃない, だった), basic verb forms (dictionary form, ない-form, た-form), basic i-adjectives and na-adjectives, common everyday vocabulary (学生, 友達, 食べる, 行く, etc.)
+   - Level 4 (N4): て-form, ている, たい, conditionals (たら, ば), giving/receiving verbs, compound particles (には, では), vague listing (や, とか)
+   - Level 3 (N3): Passive, causative, potential form, formal expressions, abstract vocabulary
+   - Level 2 (N2): Keigo, complex grammar, literary expressions
+   - Level 1 (N1): Academic/specialized grammar, rare kanji
+   - When in doubt, assign the EASIER (higher number) level. Basic grammar text content is almost always N5.
+
+3. **Example sentences**: Use example sentences FROM the source text when available, rather than inventing new ones.
+
+4. **For each item provide:**
+   - type: vocab, grammar, or kanji
+   - jlptLevel: 5-1 following the rules above
+   - reading: kana reading (for vocab/kanji)
+   - meaning: clear English meaning
+   - example: Japanese example sentence (preferably from the text)
+   - exampleTranslation: English translation of example
+   - For kanji: include onyomi and kunyomi readings
+   - For grammar: the title should be the grammar pattern (e.g. "〜だ", "〜じゃない")
 
 Material to analyze:
 ---
 ${text}
 ---
 
-Extract as many items as possible (up to 15). Focus on the most useful and common items first.`;
+Extract up to 15 items. Only include items actually present in the text above.`;
 }
 
 // ─── Public API ──────────────────────────────────────────────
@@ -108,19 +126,18 @@ export async function processDocument(
 ): Promise<number> {
   const client = getGroqClient();
   
-  // Models chosen for their excellent Japanese capabilities
-  // We rotate between them to avoid hitting daily request limits on a single model
-  const DOC_MODELS = [
-    'llama-3.3-70b-versatile',
-    'moonshotai/kimi-k2-instruct',
-  ];
+  // Use the user's selected extraction models (persisted in app store)
+  const selectedModels = useAppStore.getState().extractionModels;
+  const DOC_MODELS = selectedModels.length > 0 ? selectedModels : ['llama-3.3-70b-versatile'];
 
   // Save original model to restore later
   const originalModel = useAppStore.getState().currentModel;
   
-  // Use a safe chunk size for all our document models 
-  // (Both Qwen3 and Llama 3.1 have max 4,000, so we use a conservative 3500)
-  const chunkSize = 3500;
+  // Use the smallest maxChunkSize among selected models for safe chunking
+  const smallestMax = Math.min(
+    ...DOC_MODELS.map((m) => MODEL_RATES[m as keyof typeof MODEL_RATES]?.maxChunkSize ?? 4000)
+  );
+  const chunkSize = Math.max(smallestMax - 500, 2000); // conservative buffer
 
   try {
     const db = getDatabase();

@@ -5,12 +5,9 @@
 
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
+import type { ModelType } from '../services/groq-client';
 
-export type ModelType = 
-  | 'qwen/qwen3-32b' 
-  | 'llama-3.3-70b-versatile' 
-  | 'llama-3.1-8b-instant' 
-  | 'moonshotai/kimi-k2-instruct';
+export type { ModelType } from '../services/groq-client';
 
 interface AppState {
   // API Keys
@@ -24,6 +21,9 @@ interface AppState {
   // Session
   isLoading: boolean;
   currentThreadId: string;
+
+  // Extraction model preferences
+  extractionModels: ModelType[];
 
   // Stats
   studyStreak: number;
@@ -43,12 +43,14 @@ interface AppState {
   setTotalReviews: (count: number) => void;
   setCardsDueCount: (count: number) => void;
   setDailyGoal: (goal: number) => void;
+  toggleExtractionModel: (model: ModelType) => void;
   loadFromStorage: () => Promise<void>;
   persistApiKeys: () => Promise<void>;
 }
 
 const API_KEYS_STORAGE = 'gemini_api_keys';
 const MODEL_STORAGE = 'selected_model';
+const EXTRACTION_MODELS_STORAGE = 'extraction_models';
 const DAILY_GOAL_STORAGE = 'daily_goal';
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -63,6 +65,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   totalReviews: 0,
   cardsDueCount: 0,
   dailyGoal: 10,
+  extractionModels: ['qwen/qwen3-32b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'moonshotai/kimi-k2-instruct'] as ModelType[],
 
   // Actions
   setApiKeys: (keys) => {
@@ -108,17 +111,33 @@ export const useAppStore = create<AppState>((set, get) => ({
     SecureStore.setItemAsync(DAILY_GOAL_STORAGE, String(goal)).catch(console.error);
   },
 
+  toggleExtractionModel: (model) => {
+    const { extractionModels } = get();
+    const isSelected = extractionModels.includes(model);
+    // Prevent deselecting the last model
+    if (isSelected && extractionModels.length <= 1) return;
+    const updated = isSelected
+      ? extractionModels.filter((m) => m !== model)
+      : [...extractionModels, model];
+    set({ extractionModels: updated });
+    SecureStore.setItemAsync(EXTRACTION_MODELS_STORAGE, JSON.stringify(updated)).catch(console.error);
+  },
+
   loadFromStorage: async () => {
     try {
-      const [storedKeys, storedModel, storedGoal] = await Promise.all([
+      const [storedKeys, storedModel, storedGoal, storedExtractionModels] = await Promise.all([
         SecureStore.getItemAsync(API_KEYS_STORAGE),
         SecureStore.getItemAsync(MODEL_STORAGE),
         SecureStore.getItemAsync(DAILY_GOAL_STORAGE),
+        SecureStore.getItemAsync(EXTRACTION_MODELS_STORAGE),
       ]);
 
       const apiKeys = storedKeys ? JSON.parse(storedKeys) : [];
       const dailyGoal = storedGoal ? parseInt(storedGoal, 10) : 10;
       let currentModel = (storedModel as ModelType) || 'qwen/qwen3-32b';
+      const extractionModels: ModelType[] = storedExtractionModels
+        ? JSON.parse(storedExtractionModels)
+        : ['qwen/qwen3-32b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'moonshotai/kimi-k2-instruct'];
       
       // Validate model name (in case old invalid name is stored)
       const validModels: ModelType[] = ['qwen/qwen3-32b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'moonshotai/kimi-k2-instruct'];
@@ -130,6 +149,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         apiKeys,
         currentModel,
         dailyGoal: isNaN(dailyGoal) ? 10 : dailyGoal,
+        extractionModels,
         isGeminiReady: true,
       });
     } catch (error) {
