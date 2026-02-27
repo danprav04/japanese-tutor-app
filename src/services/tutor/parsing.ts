@@ -1,4 +1,4 @@
-import { ParsedFlashcard, ParsedProgress } from './types';
+import { ParsedProgress } from './types';
 
 /**
  * Normalize smart/curly quotes to straight quotes so JSON.parse works.
@@ -87,20 +87,7 @@ export function parseTaggedBlocks(response: string, tag: string): { cleanText: s
   return { cleanText: result.trim(), items };
 }
 
-export function parseFlashcards(response: string): { cleanText: string; cards: ParsedFlashcard[] } {
-  const { cleanText, items } = parseTaggedBlocks(response, 'FLASHCARD');
-  const cards: ParsedFlashcard[] = [];
-  const validTypes = ['vocab', 'grammar', 'kanji'];
 
-  for (const parsed of items) {
-    if (parsed.front && parsed.back && parsed.type) {
-      if (validTypes.includes(parsed.type)) {
-        cards.push(parsed as ParsedFlashcard);
-      }
-    }
-  }
-  return { cleanText, cards };
-}
 
 export function parseProgressMarkers(response: string): { cleanText: string; updates: ParsedProgress[] } {
   const { cleanText, items } = parseTaggedBlocks(response, 'PROGRESS');

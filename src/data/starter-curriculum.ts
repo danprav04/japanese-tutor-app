@@ -1,7 +1,7 @@
 /**
  * Starter Curriculum — JLPT N5 Seed Data
  *
- * Seeded on first launch so the app has flashcards and progress
+ * Seeded on first launch so the app has curriculum items and progress
  * data immediately, instead of showing empty screens.
  */
 

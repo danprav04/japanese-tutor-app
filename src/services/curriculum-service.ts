@@ -255,13 +255,10 @@ export async function searchNodes(query: string): Promise<CurriculumNode[]> {
 }
 
 /**
- * Delete a node, its associated flashcards, and its dependencies.
- * Cards use ON DELETE SET NULL, so we explicitly remove them to avoid orphans.
+ * Delete a node and its dependencies.
  */
 export async function deleteNode(nodeId: string): Promise<void> {
   const db = getDatabase();
-  // Delete associated flashcards first (schema is ON DELETE SET NULL)
-  await db.execute(`DELETE FROM cards WHERE node_id = ?`, [nodeId]);
   // Delete the node (cascades to user_progress and node_dependencies)
   await db.execute(`DELETE FROM curriculum_nodes WHERE node_id = ?`, [nodeId]);
 }
@@ -347,34 +344,28 @@ export async function getNodesWithProgress(searchQuery?: string): Promise<NodeWi
 }
 
 /**
- * Delete all curriculum data (nodes, cards, progress, documents).
+ * Delete all curriculum data (nodes, progress, documents).
  * Effectively a "factory reset" for the learning data.
  */
 export async function deleteAllCurriculum(): Promise<void> {
   const db = getDatabase();
   
-  // 1. Delete all review logs
-  await db.execute('DELETE FROM review_logs');
-
-  // 2. Delete all cards
-  await db.execute('DELETE FROM cards');
-
-  // 3. Delete all user progress
+  // 1. Delete all user progress
   await db.execute('DELETE FROM user_progress');
 
-  // 4. Delete all node dependencies
+  // 2. Delete all node dependencies
   await db.execute('DELETE FROM node_dependencies');
 
-  // 5. Delete all curriculum nodes
+  // 3. Delete all curriculum nodes
   await db.execute('DELETE FROM curriculum_nodes');
 
-  // 6. Delete all document chunks (RAG)
+  // 4. Delete all document chunks (RAG)
   await db.execute('DELETE FROM document_chunks');
 
-  // 7. Delete all documents
+  // 5. Delete all documents
   await db.execute('DELETE FROM documents');
   
-  // 8. Reset seeded flags so app can re-seed if restarted
+  // 6. Reset seeded flags so app can re-seed if restarted
   await db.execute("DELETE FROM app_settings WHERE key = 'curriculum_seeded'");
   await db.execute("DELETE FROM app_settings WHERE key = 'source_backfill_v1'");
 

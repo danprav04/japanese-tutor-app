@@ -157,23 +157,13 @@ function typeLabel(type: string): string {
 // ─── Contextual SRS Review Context ──────────────────────────
 
 /**
- * Build a review context block listing due flashcards and weak items
+ * Build a review context block listing weak items
  * for the tutor to naturally weave into conversation.
  */
 export async function getReviewContext(): Promise<string> {
   const db = getDatabase();
 
-  // 1) Get due flashcards (up to 5)
-  const now = new Date().toISOString();
-  const dueResult = await db.execute(
-    `SELECT front, back, card_type FROM cards
-     WHERE due IS NULL OR due <= ?
-     ORDER BY due ASC
-     LIMIT 5`,
-    [now]
-  );
-
-  // 2) Get weak curriculum items (mastery < 0.35, with at least 1 attempt)
+  // Get weak curriculum items (mastery < 0.35, with at least 1 attempt)
   const weakResult = await db.execute(
     `SELECT cn.title, cn.type, up.mastery_score
      FROM user_progress up
@@ -183,35 +173,24 @@ export async function getReviewContext(): Promise<string> {
      LIMIT 5`
   );
 
-  const dueCards = (dueResult.rows as any[]) || [];
   const weakItems = (weakResult.rows as any[]) || [];
 
-  if (dueCards.length === 0 && weakItems.length === 0) {
+  if (weakItems.length === 0) {
     return '';
   }
 
   const lines: string[] = [];
-  lines.push('=== ITEMS DUE FOR REVIEW ===');
+  lines.push('=== ITEMS NEEDING REVIEW ===');
   lines.push('When appropriate, weave a review of these items into the conversation naturally.');
   lines.push('For example, create a sentence that uses them and ask the student about it.');
   lines.push('');
 
-  if (dueCards.length > 0) {
-    lines.push('📋 Flashcards due:');
-    for (const card of dueCards) {
-      lines.push(`  • ${card.front} → ${card.back} (${card.card_type})`);
-    }
-    lines.push('');
+  lines.push('⚠️ Weak items (low mastery):');
+  for (const item of weakItems) {
+    const pct = Math.round((item.mastery_score as number) * 100);
+    lines.push(`  • ${item.title} (${item.type}, ${pct}% mastery)`);
   }
-
-  if (weakItems.length > 0) {
-    lines.push('⚠️ Weak items (low mastery):');
-    for (const item of weakItems) {
-      const pct = Math.round((item.mastery_score as number) * 100);
-      lines.push(`  • ${item.title} (${item.type}, ${pct}% mastery)`);
-    }
-    lines.push('');
-  }
+  lines.push('');
 
   return lines.join('\n');
 }

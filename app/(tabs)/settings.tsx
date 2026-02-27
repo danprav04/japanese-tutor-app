@@ -191,7 +191,7 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
   const handleDeleteAllCurriculum = () => {
     Alert.alert(
       '💣 Delete All Curriculum',
-      'Are you sure? This will delete EVERYTHING: all lessons, vocabulary, flashcards, documents, and progress. The app will be reset to a fresh state.',
+      'Are you sure? This will delete EVERYTHING: all lessons, vocabulary, documents, and progress. The app will be reset to a fresh state.',
       [
         { text: 'Cancel', style: 'cancel' },
         {

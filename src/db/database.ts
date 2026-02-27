@@ -81,41 +81,9 @@ async function runMigrations(database: DB): Promise<void> {
     )
   `);
 
-  // FSRS Cards
-  database.execute(`
-    CREATE TABLE IF NOT EXISTS cards (
-      card_id TEXT PRIMARY KEY,
-      node_id TEXT,
-      front TEXT NOT NULL,
-      back TEXT NOT NULL,
-      card_type TEXT CHECK(card_type IN ('vocab', 'grammar', 'kanji')),
-      due TEXT,
-      stability REAL DEFAULT 0,
-      difficulty REAL DEFAULT 0,
-      elapsed_days INTEGER DEFAULT 0,
-      scheduled_days INTEGER DEFAULT 0,
-      reps INTEGER DEFAULT 0,
-      lapses INTEGER DEFAULT 0,
-      state INTEGER DEFAULT 0,
-      last_review TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (node_id) REFERENCES curriculum_nodes(node_id) ON DELETE SET NULL
-    )
-  `);
-
-  // Review logs
-  database.execute(`
-    CREATE TABLE IF NOT EXISTS review_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      card_id TEXT NOT NULL,
-      rating INTEGER CHECK(rating BETWEEN 1 AND 4),
-      review_time TEXT DEFAULT (datetime('now')),
-      elapsed_days INTEGER,
-      scheduled_days INTEGER,
-      state INTEGER,
-      FOREIGN KEY (card_id) REFERENCES cards(card_id) ON DELETE CASCADE
-    )
-  `);
+  // Migration: drop legacy card/review tables
+  database.execute(`DROP TABLE IF EXISTS review_logs`);
+  database.execute(`DROP TABLE IF EXISTS cards`);
 
   // Documents for RAG
   database.execute(`
@@ -173,8 +141,6 @@ async function runMigrations(database: DB): Promise<void> {
 
   // Create indices
   database.execute(`CREATE INDEX IF NOT EXISTS idx_dependencies_child ON node_dependencies(child_id)`);
-  database.execute(`CREATE INDEX IF NOT EXISTS idx_cards_due ON cards(due)`);
-  database.execute(`CREATE INDEX IF NOT EXISTS idx_cards_node ON cards(node_id)`);
   database.execute(`CREATE INDEX IF NOT EXISTS idx_chunks_document ON document_chunks(document_id)`);
   database.execute(`CREATE INDEX IF NOT EXISTS idx_checkpoints_thread ON checkpoints(thread_id, created_at DESC)`);
 }

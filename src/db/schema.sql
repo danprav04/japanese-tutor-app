@@ -47,45 +47,6 @@ CREATE TABLE IF NOT EXISTS user_progress (
 );
 
 -- ============================================
--- FSRS FLASHCARDS
--- ============================================
-
-CREATE TABLE IF NOT EXISTS cards (
-  card_id TEXT PRIMARY KEY,
-  node_id TEXT,
-  front TEXT NOT NULL,
-  back TEXT NOT NULL,
-  card_type TEXT CHECK(card_type IN ('vocab', 'grammar', 'kanji')),
-  -- FSRS core parameters
-  due TEXT,
-  stability REAL DEFAULT 0,
-  difficulty REAL DEFAULT 0,
-  elapsed_days INTEGER DEFAULT 0,
-  scheduled_days INTEGER DEFAULT 0,
-  reps INTEGER DEFAULT 0,
-  lapses INTEGER DEFAULT 0,
-  state INTEGER DEFAULT 0, -- 0=New, 1=Learning, 2=Review, 3=Relearning
-  last_review TEXT,
-  created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (node_id) REFERENCES curriculum_nodes(node_id) ON DELETE SET NULL
-);
-
-CREATE INDEX idx_cards_due ON cards(due);
-CREATE INDEX idx_cards_node ON cards(node_id);
-
--- Review history for FSRS optimization
-CREATE TABLE IF NOT EXISTS review_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  card_id TEXT NOT NULL,
-  rating INTEGER CHECK(rating BETWEEN 1 AND 4), -- 1=Again, 2=Hard, 3=Good, 4=Easy
-  review_time TEXT DEFAULT (datetime('now')),
-  elapsed_days INTEGER,
-  scheduled_days INTEGER,
-  state INTEGER,
-  FOREIGN KEY (card_id) REFERENCES cards(card_id) ON DELETE CASCADE
-);
-
--- ============================================
 -- RAG DOCUMENT STORAGE
 -- ============================================
 
@@ -149,5 +110,4 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
   ('selected_model', 'qwen/qwen3-32b'),
   ('total_donated', '0'),
   ('study_streak', '0'),
-  ('last_study_date', ''),
-  ('daily_goal', '10');
+  ('last_study_date', '');

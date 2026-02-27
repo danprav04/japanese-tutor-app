@@ -5,7 +5,6 @@
  * 1. Reading file content from the device (SDK 54 File API)
  * 2. Sending to Gemini for structured extraction (chunked for long docs)
  * 3. Inserting extracted items into the curriculum
- * 4. Creating flashcards for each extracted item
  */
 
 import { File } from 'expo-file-system/next';
@@ -13,7 +12,6 @@ import { extractText } from 'expo-pdf-text-extract';
 import { getDatabase } from '../db/database';
 import { getGroqClient, MODEL_RATES } from './groq-client';
 import { addNode } from './curriculum-service';
-import { createFlashcard } from './card-service';
 import { initializeProgress } from './progress-service';
 import { useAppStore } from '../store/app-store';
 import { v4 as uuidv4 } from 'uuid';
@@ -519,7 +517,7 @@ export async function processDocument(
 
   options?.onProgress?.(0.87, 'Saving to database...');
 
-  // 7. Insert validated items into curriculum + create flashcards
+  // 7. Insert validated items into curriculum
   let importedCount = 0;
 
   for (const item of validatedItems) {
@@ -549,22 +547,6 @@ export async function processDocument(
         fileName,
       );
 
-      let front: string;
-      let back: string;
-
-      if (item.type === 'kanji') {
-        front = item.title;
-        back = `${item.meaning}\n${item.onyomi ?? ''} / ${item.kunyomi ?? ''}`;
-      } else if (item.type === 'vocab') {
-        front = item.title;
-        back = `${item.meaning}${item.reading ? '\n(' + item.reading + ')' : ''}`;
-      } else {
-        // grammar — front is the pattern, back is explanation + example
-        front = item.title;
-        back = `${item.meaning}${item.example ? '\n例: ' + item.example : ''}`;
-      }
-
-      // await createFlashcard(front, back, item.type, node.nodeId);
       await initializeProgress(node.nodeId, true);
 
       importedCount++;
