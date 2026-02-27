@@ -8,10 +8,11 @@
 
 import { initGroqClient, getGroqClient, type ModelType } from './groq-client';
 import { saveCheckpoint, getLatestCheckpoint, listCheckpoints, setThreadTitle } from '../db/checkpointer';
-import { buildCurriculumContext, getReviewContext, type CurriculumStatus } from './curriculum-context';
+import { buildCurriculumContext, getReviewContext, type CurriculumStatus, type CurriculumContextResult } from './curriculum-context';
 import { recordAnswer, updateStudyStreak } from './progress-service';
 import { searchNodes } from './curriculum-service';
 import { lookupWord, formatForTutor } from './jisho-service';
+import { getTeachingContext } from './rag-service';
 import {
   detectDocumentLearningIntent,
   resolveDocument,
@@ -168,6 +169,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   let curriculumContext = '';
   let reviewContext = '';
   let curriculumStatus: CurriculumStatus = 'has_content';
+  let sourceContext = '';
   try {
     const [currResult, reviewResult] = await Promise.all([
       buildCurriculumContext(),
@@ -176,11 +178,23 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     curriculumContext = currResult.context;
     curriculumStatus = currResult.status;
     reviewContext = reviewResult;
+
+    // Pre-fetch source material for target lesson and review nodes
+    if (currResult.targetLessonNodeId || currResult.targetReviewNodeId) {
+      const { lessonContext, reviewContext: reviewSourceCtx } = await getTeachingContext(
+        currResult.targetLessonNodeId,
+        currResult.targetReviewNodeId,
+      );
+      const parts = [lessonContext, reviewSourceCtx].filter(Boolean);
+      if (parts.length > 0) {
+        sourceContext = parts.join('\n\n');
+      }
+    }
   } catch (err) {
     console.warn('Failed to load curriculum/review context:', err);
   }
 
-  const contextParts = [SYSTEM_PROMPT, curriculumContext, reviewContext, documentFocusHint]
+  const contextParts = [SYSTEM_PROMPT, curriculumContext, reviewContext, sourceContext, documentFocusHint]
     .filter(Boolean)
     .join('\n\n');
 

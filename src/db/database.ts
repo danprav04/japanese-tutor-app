@@ -39,19 +39,37 @@ export function getDatabase(): DB {
  * Run database migrations/schema creation
  */
 async function runMigrations(database: DB): Promise<void> {
-  // Curriculum nodes
+  // Curriculum nodes (RAG-tree: lightweight topic references)
   database.execute(`
     CREATE TABLE IF NOT EXISTS curriculum_nodes (
       node_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       type TEXT CHECK(type IN ('grammar', 'vocab', 'kanji')) NOT NULL,
       jlpt_level INTEGER CHECK(jlpt_level BETWEEN 1 AND 5),
-      content_payload TEXT,
+      summary TEXT,
+      chunk_refs TEXT,
       source_file TEXT,
+      document_id TEXT,
+      sort_order INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE
     )
   `);
+
+  // Migration: add new RAG columns if upgrading from old schema
+  try {
+    database.execute(`ALTER TABLE curriculum_nodes ADD COLUMN summary TEXT`);
+  } catch { /* column already exists */ }
+  try {
+    database.execute(`ALTER TABLE curriculum_nodes ADD COLUMN chunk_refs TEXT`);
+  } catch { /* column already exists */ }
+  try {
+    database.execute(`ALTER TABLE curriculum_nodes ADD COLUMN document_id TEXT REFERENCES documents(document_id) ON DELETE CASCADE`);
+  } catch { /* column already exists */ }
+  try {
+    database.execute(`ALTER TABLE curriculum_nodes ADD COLUMN sort_order INTEGER DEFAULT 0`);
+  } catch { /* column already exists */ }
 
   // Node dependencies
   database.execute(`
@@ -143,6 +161,7 @@ async function runMigrations(database: DB): Promise<void> {
   database.execute(`CREATE INDEX IF NOT EXISTS idx_dependencies_child ON node_dependencies(child_id)`);
   database.execute(`CREATE INDEX IF NOT EXISTS idx_chunks_document ON document_chunks(document_id)`);
   database.execute(`CREATE INDEX IF NOT EXISTS idx_checkpoints_thread ON checkpoints(thread_id, created_at DESC)`);
+  database.execute(`CREATE INDEX IF NOT EXISTS idx_nodes_document ON curriculum_nodes(document_id)`);
 }
 
 /**

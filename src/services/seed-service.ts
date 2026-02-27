@@ -35,15 +35,18 @@ export async function seedStarterCurriculum(): Promise<void> {
 
     let seededCount = 0;
 
-    for (const item of STARTER_CURRICULUM) {
+    for (const [index, item] of STARTER_CURRICULUM.entries()) {
       try {
         // 1. Add curriculum node
         const node = await addNode(
           item.title,
           item.type,
           item.jlptLevel,
-          item.content as Record<string, unknown>,
-          'Initial Set'
+          {
+            summary: item.summary,
+            sourceFile: 'Initial Set',
+            sortOrder: index,
+          }
         );
 
         // Initialize BKT progress (unlocked for N5 starters)

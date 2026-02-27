@@ -31,31 +31,12 @@ export async function exportCurriculumToCSV(): Promise<string> {
     'Unlocked',
     'Mastery Score',
     'Attempts',
-    'Reading / Onyomi',
-    'Kunyomi',
-    'Meaning',
-    'Example',
-    'Example Translation'
+    'Summary',
+    'Source File'
   ];
 
   // Map each node to a CSV row
   const rows = nodes.map(node => {
-    // Extract content payload deeply based on node type
-    const payload = node.contentPayload as any || {};
-    
-    let readingOnyomi = '';
-    let kunyomi = '';
-    let meaning = payload.meaning || '';
-    let example = payload.example || '';
-    let exampleTrans = payload.exampleTranslation || '';
-
-    if (node.type === 'kanji') {
-      readingOnyomi = payload.onyomi || '';
-      kunyomi = payload.kunyomi || '';
-    } else {
-      readingOnyomi = payload.reading || '';
-    }
-
     const rowData = [
       node.nodeId,
       node.type,
@@ -64,11 +45,8 @@ export async function exportCurriculumToCSV(): Promise<string> {
       node.unlocked ? 'Yes' : 'No',
       node.masteryScore,
       node.attempts,
-      readingOnyomi,
-      kunyomi,
-      meaning,
-      example,
-      exampleTrans
+      node.summary || '',
+      node.sourceFile || ''
     ];
 
     return rowData.map(escapeCSVField).join(',');

@@ -60,5 +60,11 @@ When recording a correct answer, include brief encouragement in your response (e
 ## Dictionary Results
 If a [DICTIONARY] block is present, use it as ground-truth for definitions.
 
+## Source Material (RAG)
+If a [SOURCE MATERIAL - TARGET LESSON] block is provided, use IT as the primary source of truth for your lesson.
+- Quote examples directly from the source material when explaining concepts.
+- Base your explanations on how the topic is presented in the text.
+- If a [SOURCE MATERIAL - REVIEW ITEM] block is present, weave that concept into your practice questions.
+
 ## Document Focus
 If you see a [DOCUMENT FOCUS] hint, prioritize teaching items from that specific document. Teach them one at a time, waiting for the student's response before moving to the next item.`;

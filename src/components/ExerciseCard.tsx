@@ -20,7 +20,13 @@ import {
   Dimensions,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
-import type { ParsedExercise } from '../services/tutor-agent';
+export interface ParsedExercise {
+  type: 'fill-blank' | 'translate' | 'choose';
+  question: string;
+  options?: string[];
+  answer: string;
+  hint?: string;
+}
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 

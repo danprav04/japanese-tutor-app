@@ -27,7 +27,6 @@ function getMasteryLabel(score: number): string {
 
 function CurriculumItem({ item, onDelete }: { item: NodeWithProgress; onDelete: (nodeId: string) => void }) {
   const [expanded, setExpanded] = useState(false);
-  const content = item.contentPayload as Record<string, string> | null;
 
   const handleExpand = () => {
     setExpanded(!expanded);
@@ -46,11 +45,13 @@ function CurriculumItem({ item, onDelete }: { item: NodeWithProgress; onDelete: 
             {getMasteryLabel(item.masteryScore)}
           </Text>
         </View>
-        {content?.meaning && (
+        
+        {item.summary && (
           <Text style={styles.itemMeaning} numberOfLines={expanded ? undefined : 1}>
-            {content.meaning}
+            {item.summary}
           </Text>
         )}
+        
         {/* Mastery bar */}
         <View style={styles.masteryBarContainer}>
           <View
@@ -65,40 +66,8 @@ function CurriculumItem({ item, onDelete }: { item: NodeWithProgress; onDelete: 
         </View>
       </View>
 
-      {expanded && content && (
+      {expanded && (
         <View style={styles.itemDetails}>
-          {content.reading && (
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>Reading: </Text>
-              {content.reading}
-            </Text>
-          )}
-          {content.onyomi && (
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>音読み: </Text>
-              {content.onyomi}
-            </Text>
-          )}
-          {content.kunyomi && (
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>訓読み: </Text>
-              {content.kunyomi}
-            </Text>
-          )}
-          {content.strokeCount && (
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>Strokes: </Text>
-              {content.strokeCount}
-            </Text>
-          )}
-          {content.example && (
-            <View style={styles.exampleBox}>
-              <Text style={styles.exampleText}>{content.example}</Text>
-              {content.exampleTranslation && (
-                <Text style={styles.exampleTranslation}>{content.exampleTranslation}</Text>
-              )}
-            </View>
-          )}
           <Text style={styles.detailMeta}>
             {item.sourceFile || 'Unknown Source'}
           </Text>

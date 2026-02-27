@@ -6,15 +6,20 @@
 -- ============================================
 
 -- Core curriculum nodes (vocabulary, grammar, kanji)
+-- Nodes are lightweight topic references that point to source document chunks.
 CREATE TABLE IF NOT EXISTS curriculum_nodes (
   node_id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   type TEXT CHECK(type IN ('grammar', 'vocab', 'kanji')) NOT NULL,
   jlpt_level INTEGER CHECK(jlpt_level BETWEEN 1 AND 5),
-  content_payload TEXT, -- JSON with lesson content, examples, rules
-  source_file TEXT, -- Original file this was extracted from
+  summary TEXT, -- Brief AI-generated summary of the topic
+  chunk_refs TEXT, -- JSON array of chunk_ids in document_chunks
+  source_file TEXT, -- Original filename
+  document_id TEXT, -- FK to source document
+  sort_order INTEGER DEFAULT 0, -- Position in document's topic tree
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE
 );
 
 -- Dependency graph between curriculum nodes

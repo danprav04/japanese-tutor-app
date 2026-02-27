@@ -5,9 +5,11 @@
  * 1. Detects intent from user messages
  * 2. Resolves the document from the database
  * 3. Builds a document-scoped curriculum context with progress
+ * 4. Pre-fetches source material for the next topic to teach
  */
 
 import { getDatabase } from '../db/database';
+import { getChunksForNode } from './rag-service';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -22,7 +24,7 @@ export interface DocumentLearningItem {
   title: string;
   type: string;
   jlptLevel: number;
-  meaning: string | null;
+  summary: string | null;
   masteryScore: number;
   attempts: number;
 }
@@ -133,18 +135,19 @@ export async function resolveDocument(name: string): Promise<DocumentInfo | null
  * Build a learning context scoped to a specific document.
  * Shows all items from that document grouped by mastery, with
  * the next item to teach clearly highlighted.
+ * Also pre-fetches source material for the target lesson.
  */
 export async function getDocumentLearningContext(filename: string): Promise<string> {
   const db = getDatabase();
 
   const result = await db.execute(
-    `SELECT cn.node_id, cn.title, cn.type, cn.jlpt_level, cn.content_payload,
+    `SELECT cn.node_id, cn.title, cn.type, cn.jlpt_level, cn.summary,
             COALESCE(up.mastery_score, 0) as mastery_score,
             COALESCE(up.attempts, 0) as attempts
      FROM curriculum_nodes cn
      LEFT JOIN user_progress up ON cn.node_id = up.node_id
      WHERE cn.source_file = ?
-     ORDER BY up.mastery_score ASC, cn.type, cn.jlpt_level DESC`,
+     ORDER BY cn.sort_order ASC, up.mastery_score ASC`,
     [filename]
   );
 
@@ -152,24 +155,15 @@ export async function getDocumentLearningContext(filename: string): Promise<stri
     return `No curriculum items found for document "${filename}".`;
   }
 
-  const items: DocumentLearningItem[] = (result.rows as any[]).map((row) => {
-    let meaning: string | null = null;
-    if (row.content_payload) {
-      try {
-        const payload = JSON.parse(row.content_payload as string);
-        meaning = payload.meaning || null;
-      } catch {}
-    }
-    return {
-      nodeId: row.node_id as string,
-      title: row.title as string,
-      type: row.type as string,
-      jlptLevel: row.jlpt_level as number,
-      masteryScore: row.mastery_score as number,
-      attempts: row.attempts as number,
-      meaning,
-    };
-  });
+  const items: DocumentLearningItem[] = (result.rows as any[]).map((row) => ({
+    nodeId: row.node_id as string,
+    title: row.title as string,
+    type: row.type as string,
+    jlptLevel: row.jlpt_level as number,
+    summary: (row.summary as string) ?? null,
+    masteryScore: row.mastery_score as number,
+    attempts: row.attempts as number,
+  }));
 
   // Group by mastery bands
   const unlearned = items.filter((i) => i.masteryScore < 0.3);
@@ -182,12 +176,25 @@ export async function getDocumentLearningContext(filename: string): Promise<stri
   lines.push(`Total items: ${items.length} | Mastered: ${mastered.length} | Learning: ${learning.length + familiar.length} | Not started: ${unlearned.length}`);
   lines.push('');
 
-  // Highlight the NEXT item to teach
+  // Highlight the NEXT item to teach and pre-fetch its source material
   const nextItem = unlearned[0] || learning[0] || familiar[0];
   if (nextItem) {
-    const detail = nextItem.meaning ? ` — ${nextItem.meaning}` : '';
+    const detail = nextItem.summary ? ` — ${nextItem.summary}` : '';
     lines.push(`🎯 NEXT ITEM TO TEACH: "${nextItem.title}"${detail} (${nextItem.type}, mastery: ${Math.round(nextItem.masteryScore * 100)}%)`);
     lines.push('');
+
+    // Pre-fetch source material for this topic
+    try {
+      const chunks = await getChunksForNode(nextItem.nodeId);
+      if (chunks.length > 0) {
+        lines.push('[SOURCE MATERIAL - TARGET LESSON]');
+        lines.push(chunks.join('\n\n'));
+        lines.push('[/SOURCE MATERIAL]');
+        lines.push('');
+      }
+    } catch (err) {
+      console.warn('Failed to load source material for document focus:', err);
+    }
   } else {
     lines.push('🎉 ALL ITEMS IN THIS DOCUMENT ARE MASTERED!');
     lines.push('');
@@ -197,7 +204,7 @@ export async function getDocumentLearningContext(filename: string): Promise<stri
   if (unlearned.length > 0) {
     lines.push('📕 NOT YET LEARNED:');
     for (const item of unlearned) {
-      const detail = item.meaning ? ` — ${item.meaning}` : '';
+      const detail = item.summary ? ` — ${item.summary}` : '';
       lines.push(`  • ${item.title}${detail} (${item.type})`);
     }
     lines.push('');
@@ -207,7 +214,7 @@ export async function getDocumentLearningContext(filename: string): Promise<stri
   if (learning.length > 0) {
     lines.push('📙 STILL LEARNING:');
     for (const item of learning) {
-      const detail = item.meaning ? ` — ${item.meaning}` : '';
+      const detail = item.summary ? ` — ${item.summary}` : '';
       lines.push(`  • ${item.title}${detail} (mastery: ${Math.round(item.masteryScore * 100)}%)`);
     }
     lines.push('');
