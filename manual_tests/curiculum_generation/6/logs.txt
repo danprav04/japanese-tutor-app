@@ -1,0 +1,77 @@
+Android Bundled 58ms index.tsx (1 module)
+ LOG  ✅ Standard Web APIs polyfilled for Hermes engine.
+ LOG  ✅ Database initialized
+ WARN  statusBarTranslucent and navigationBarTranslucent values are ignored when using react-native-edge-to-edge
+ LOG  🔑 Groq Proxy Client initialized. Model: qwen/qwen3-32b. BYOK active: true
+ LOG  🔑 Groq Proxy Client initialized. Model: llama-3.3-70b-versatile. BYOK active: true
+ LOG  🤖 Switched to model: llama-3.3-70b-versatile
+ LOG  📄 Processing chunk 1/10 using llama-3.3-70b-versatile (7492 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  📄 Processing chunk 2/10 using llama-3.3-70b-versatile (7468 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  📄 Processing chunk 3/10 using llama-3.3-70b-versatile (7196 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  📄 Processing chunk 4/10 using llama-3.3-70b-versatile (7486 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  📄 Processing chunk 5/10 using llama-3.3-70b-versatile (7169 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 2913 chars
+ LOG  ✅ Received response from Groq. Length: 2635 chars
+ LOG  ✅ Received response from Groq. Length: 2572 chars
+ LOG  ✅ Received response from Groq. Length: 3289 chars
+ LOG  ✅ Received response from Groq. Length: 3421 chars
+ LOG  🤖 Switched to model: llama-3.3-70b-versatile
+ LOG  📄 Processing chunk 6/10 using llama-3.3-70b-versatile (7395 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  📄 Processing chunk 7/10 using llama-3.3-70b-versatile (7497 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  📄 Processing chunk 8/10 using llama-3.3-70b-versatile (7290 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  📄 Processing chunk 9/10 using llama-3.3-70b-versatile (7336 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  📄 Processing chunk 10/10 using llama-3.3-70b-versatile (427 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 1602 chars
+ LOG  ✅ Received response from Groq. Length: 3606 chars
+ LOG  ✅ Received response from Groq. Length: 4094 chars
+ LOG  ✅ Received response from Groq. Length: 3340 chars
+ LOG  ✅ Received response from Groq. Length: 3526 chars
+ LOG  🤖 Switched to model: llama-3.3-70b-versatile
+ LOG  🔍 Using llama-3.3-70b-versatile for validation pass
+ LOG  ✅ Validating batch 1/6 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Validating batch 2/6 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Validating batch 3/6 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Validating batch 4/6 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Validating batch 5/6 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 5467 chars
+ LOG  ✅ Received response from Groq. Length: 6400 chars
+ LOG  ✅ Received response from Groq. Length: 5908 chars
+ LOG  ✅ Received response from Groq. Length: 7437 chars
+ LOG  ✅ Received response from Groq. Length: 6796 chars
+ LOG  ➕ Added missing item: です
+ LOG  ➕ Added missing item: ありません
+ LOG  ➕ Added missing item: でした
+ LOG  ➕ Added missing item: ませんでした
+ LOG  ✅ Validating batch 6/6 (10 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Rate limit. Retrying in 3820ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 4391 chars
+ LOG  ✅ Validation complete: 109 items (was 85 before validation)
+ WARN  🔧 Post-process: "あまり" example doesn't contain the word: "値段があんまりよくない"
+ WARN  🔧 Post-process: "かっこいい" example doesn't contain the word: "かっこよかった"
+ WARN  🔧 Post-process: "いる" example doesn't contain the word: "猫がいない。"
+ WARN  🔧 Post-process: "行く" example doesn't contain the word: "ボブは日本に行った"
+ WARN  🔧 Post-process: "見る" example doesn't contain the word: "映画館で見た"
+ WARN  🔧 Post-process: "なに" example doesn't contain the word: "何できた？"
+ WARN  🔧 Post-process: "落とす" example doesn't contain the word: "ボールを落とした。"
+ WARN  🔧 Post-process: "落ちる" example doesn't contain the word: "ボールが落ちた。"
+ WARN  🔧 Post-process: "これ" example doesn't contain the word: "この本は私たちの"
+ WARN  🔧 Post-process: "あれ" example doesn't contain the word: "あの山は高さが高い"
+ WARN  🔧 Post-process: "早い" example doesn't contain the word: "ボブは朝ご飯を早く食べた"
+ LOG  🤖 Switched to model: llama-3.3-70b-versatile
