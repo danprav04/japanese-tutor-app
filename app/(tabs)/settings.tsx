@@ -116,10 +116,10 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
         if (!result.canceled && result.assets[0]) {
           const file = result.assets[0];
   
-          if (!useAppStore.getState().isGeminiReady) {
-            Alert.alert('API Key Required', 'Please add an API key first to process documents.');
-            return;
-          }
+          // if (!useAppStore.getState().isGeminiReady) {
+          //   Alert.alert('API Key Required', 'Please add an API key first to process documents.');
+          //   return;
+          // }
   
           Alert.alert(
             'Process File',
@@ -418,7 +418,7 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
             })}
           </View>
 
-          {apiKeys.length === 0 ? (
+          {/* BYOK block disabled */ false && apiKeys.length === 0 ? (
             <View style={styles.lockedContainer}>
               <Text style={styles.lockedIcon}>🔒</Text>
               <Text style={styles.lockedTitle}>BYOK Required</Text>
