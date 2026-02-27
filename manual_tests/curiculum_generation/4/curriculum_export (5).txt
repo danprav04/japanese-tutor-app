@@ -1,0 +1,185 @@
+Node ID,Type,JLPT Level,Title,Unlocked,Mastery Score,Attempts,Reading / Onyomi,Kunyomi,Meaning,Example,Example Translation
+06cd5b9a-ca3c-4536-a3df-cd9c7e63297d,grammar,5,が,Yes,0.1,0,が,,Identifier particle (used to specify/identify an unknown subject),誰が学生？,Who is the student?
+744dd7ff-264a-4b1d-aff4-e2607e305e5b,grammar,5,きれいに,Yes,0.1,0,きれいに,,Adverb form of na-adjective 'きれい' (clean/pretty),アリスは自分の部屋をきれいにした。,Alice cleaned her own room.
+5b980562-3428-4642-96dc-cdd0de4bda72,grammar,5,じゃない,Yes,0.1,0,じゃない,,negative state-of-being,友達じゃない。,Is not friend.
+f481e07c-32f0-4297-ade2-cfc0edb532d3,grammar,5,じゃなかった,Yes,0.1,0,じゃなかった,,negative past state-of-being,友達じゃなかった。,Was not friend.
+f9a269c9-4eb3-4c56-8cbd-7466931ed1fa,grammar,5,だ,Yes,0.1,0,だ,,declare state-of-being,学生だ。,Is student.
+e3047c09-32e5-4378-b9f4-1bfb535730a9,grammar,5,だった,Yes,0.1,0,だった,,past state-of-being,学生だった。,Was student.
+c58f80f2-b2ec-4006-8c3e-0f62c093ef9b,grammar,5,と,Yes,0.1,0,と,,Inclusive 'and' to combine nouns,ナイフとフォークでステーキを食べた。,Ate steak by means of knife and fork.
+2b28d70f-2be9-49d1-a6a1-c88aa5593327,grammar,5,な,Yes,0.1,0,な,,Connector for na-adjectives modifying nouns,静かな人,Quiet person
+07e40046-da10-4507-bc09-776a789abac8,grammar,5,の,Yes,0.1,0,,,Possession or nominalization particle,ボブの本,Bob's book
+1a56390d-bbcf-4d1b-989d-89754af865ee,grammar,5,は,Yes,0.1,0,は,,topic particle,ボブ：アリスは学生？,Bob: Is Alice (you) student?
+3dcd66d9-b8e8-41f2-8a18-5573af498c54,grammar,5,も,Yes,0.1,0,も,,inclusive topic particle,ジョンは明日。,John is tomorrow.
+74e35cea-7d3b-4620-a5a1-22f59ace2546,grammar,5,る-verbs and u-verbs classification,Yes,0.1,0,,,Rules for distinguishing ru-verbs (ending in る with preceding i/e vowel) and u-verbs (ending in る with a/u/o vowel or other u-sound endings). Exceptions include する and 来る.,食べる (e-vowel) is a ru-verb; 見る (i-vowel) is a ru-verb; 分かる (a-vowel) is a u-verb.,Eat (e-vowel) is a ru-verb; See (i-vowel) is a ru-verb; Know (a-vowel) is a u-verb.
+b059d802-cbb2-4edd-a2f8-a387458f7c19,grammar,5,を,Yes,0.1,0,,,direct object particle,魚を食べる。,Eat fish.
+d36643e7-1df8-493d-98cd-95360d96a542,grammar,5,早く,Yes,0.1,0,はやく,,Adverb form of i-adjective 'はやい' (fast/early),ボブは朝ご飯を早く食べた。,Bob quickly ate breakfast.
+03e01789-7cfa-43a0-b70f-9a8bf3ba1db1,grammar,5,過去形（ru-verb）,Yes,0.1,0,かこけい（る-べつ）,,To form past tense of ru-verbs: drop 「る」 and add 「た」,食べる → 食べた,to eat → ate
+7d9ec0a2-4c77-48cf-a9cd-882412661c40,grammar,4,No 「だ」 with i-adjectives,Yes,0.1,0,,,"Do not attach 「だ」 to i-adjectives (e.g., 高い, not 高いだ)",高いビル。 (Not 「高いだビル」),Tall building.
+eb237252-465b-4be4-8199-2db6878a5a16,grammar,4,i-adjective conjugation (negative),Yes,0.1,0,,,Negative: Remove trailing 「い」 and add 「くない」,高い → 高くない,Expensive → Not expensive
+878f19af-766a-436a-9b75-0812549b341b,grammar,4,から,Yes,0.1,0,,,source particle (from),アリスは、アメリカからきた。,Alice came from America.
+30f3acd1-2046-4b91-856d-7817a3988ca7,grammar,4,で,Yes,0.1,0,de,,Particle specifying context or means by which an action is performed,映画館で見た。,Saw at movie theater.
+044e3ea4-5f67-4f4f-8e21-4335c08ca785,grammar,4,とか,Yes,0.1,0,,,Colloquial equivalent of 'や' for vague listing,飲み物とかカップとかナプキンは、いらない？,"You don't need (things like) drink, cup, or napkin, etc.?"
+170db488-4c57-43c2-8e9f-3fe6600101e5,grammar,4,どこで,Yes,0.1,0,どこで,,where (location of action),どこで食べる？,Eat where?
+8f2ccd13-7a9e-41fb-b477-ba79f534dd47,grammar,4,ない,Yes,0.1,0,,,negative form (for all verbs except いる),アリスは食べない,"As for Alice, does not eat."
+5cba5487-01d1-45c0-bca1-6a9fa733d30c,grammar,4,に,Yes,0.1,0,,,target particle,ボブは日本に行った。,Bob went to Japan.
+bf89f285-0516-48ae-8ad0-cf0534baeff5,grammar,4,には,Yes,0.1,0,には,,topic marker with location,図書館には？,What about the library?
+3fbf3111-3650-4ba8-8c43-5bf88810785a,grammar,4,や,Yes,0.1,0,,,"Vague listing, implies additional unlisted items",飲み物やカップやナプキンは、いらない？,"You don't need (things like) drink, cup, or napkin, etc.?"
+f296a2ac-20e5-49b8-8f2e-0d90c3d2792f,grammar,4,何で,Yes,0.1,0,なんで,,why (colloquial),何できた？,Why did you come?
+c2a27e08-5fcf-400e-acba-022e5050caee,grammar,4,過去形（u-verb）,Yes,0.1,0,かこけい（う-べつ）,,Past tense conjugations for u-verbs (classified by final character),走る → 走った,to run → ran
+48704ad7-2ce6-4f37-8761-238091051c15,grammar,3,Relative Clauses (Verb + Noun),Yes,0.1,0,,,Using verbs and state-of-being as adjectives to modify nouns,The person who did not eat went to the bank.,Using a verb phrase to modify a noun like an adjective
+be8800c0-903a-4fe5-b6bc-75ce7f027a65,grammar,3,へ,Yes,0.1,0,e,,"Directional particle indicating movement towards a target, not necessarily the final destination",ボブは日本へ行った。,Bob headed towards Japan.
+c9087a83-e0b1-4c37-8786-b9c4918e9548,grammar,3,んじゃなかった,Yes,0.1,0,んじゃなかった,,Past-negative form of the state-of-being with 「んだ」; used for explanatory past negation,学生なんじゃなかった。,It was that (he/she) was not a student.
+40608f5c-ed1f-45ee-ab90-765296d0feec,grammar,3,んだ,Yes,0.1,0,んだ,,Explanatory form; used to explain reasons or emphasize statements with conjugated forms of the state-of-being,ボブ：授業に行くんだ。,Bob: It is that (I) go to class.
+57e61355-d147-40a0-b994-ab500f17801e,grammar,3,使用する動詞の過去形・否定形・否定過去形を名詞修飾に使用,Yes,0.1,0,,,"Verbs in past, negative, and negative past forms can modify nouns directly like adjectives",先週医者だったボブは仕事を辞めた。,"Bob, who was a doctor last week, quit his job."
+a19e1f9a-9df8-4d7b-b369-5652e9d409b4,grammar,3,名詞の連鎖,Yes,0.1,0,,,Nouns can be chained together without grammatical modification in phrases like 'International Education Center' (国際教育センター),立入禁止の案内板,Signboard with 'No Entry' prohibition
+15d21bd6-a598-4779-8326-ff8eb85358cb,kanji,5,あ,Yes,0.1,0,A,あ・る,to exist (inanimate),,
+f632507e-0bee-417a-b2f7-4b0c36c0bb57,kanji,5,い,Yes,0.1,0,I,い・る,to exist (animate),,
+e5ff2d37-359f-4c84-8192-c300e1a49e65,kanji,5,る,Yes,0.1,0,RU,る,verb ending particle,,
+046bd4f5-efc5-4a73-9ad0-2e2085568140,kanji,5,何,Yes,0.1,0,ナニ,ナン,"what, which",何できた？,Came by the way of what?
+84531979-01b6-4279-8b48-e9ebf51ffaab,kanji,5,元,Yes,0.1,0,ゲン,もと,origin; source,,
+9444b025-879a-473a-9611-96750290e362,kanji,5,入,Yes,0.1,0,ニュウ,い（れる）,to insert,,
+204284ae-bae5-47a7-bee5-f9d31eb11cb0,kanji,5,出,Yes,0.1,0,ショツ,で（る）,to come out,,
+4670c826-b7e3-46ce-a14b-f37dfad77012,kanji,5,友,Yes,0.1,0,ユウ,とも,friend,,
+b5b2232a-1485-4fcd-8b5d-72aa00fcc710,kanji,5,変,Yes,0.1,0,ヘン,か.わる,Change,,
+ac05ae0f-7735-4055-98e4-fb9cc5346e4b,kanji,5,学,Yes,0.1,0,ガク,まな,study; learning,,
+297fe23b-1a88-4547-8046-8d28ebb79480,kanji,5,教,Yes,0.1,0,キョウ,おし（える）,to teach,,
+885e668c-b740-43db-b5f6-b94279c6855d,kanji,5,日,Yes,0.1,0,に,ひ,Day; sun,,
+861cce9d-f330-45bc-8696-d8045891a748,kanji,5,早,Yes,0.1,0,ハヤ,はや,Fast/early,,
+4085c65e-d0a4-418f-a1bf-dccd1c71f291,kanji,5,本,Yes,0.1,0,ほん,もと,Book; root,,
+e96b685a-50e9-4967-88a4-1348db598485,kanji,5,気,Yes,0.1,0,キ,いき,air; spirit,,
+29bbc142-c7a7-4d38-817e-7ad089aa46da,kanji,5,泳,Yes,0.1,0,エイ,およ（ぐ）,to swim,,
+cd500d51-7c1e-4490-8426-dd739ca509ec,kanji,5,生,Yes,0.1,0,セイ,い,life; birth,,
+2382a4d9-e844-4fa7-bac3-28005ad51349,kanji,5,町,Yes,0.1,0,チョウ,まち,Town,,
+3f36667c-c583-412d-b7e3-292506274055,kanji,5,着,Yes,0.1,0,チヤク,き（る）,to wear,,
+f700e48c-6345-4f62-8b67-57cf918dfabc,kanji,5,聞,Yes,0.1,0,ブン,き（く）,to ask; to listen,,
+b602018d-4215-4f3a-a8c5-43806e8526b1,kanji,5,行,Yes,0.1,0,コウ,いく,to go,,
+4debe112-b9f4-401b-b2a5-f70156e0fd14,kanji,5,話,Yes,0.1,0,ワダ,はな（す）,to speak,,
+10b6aa3a-f0d2-4209-8d8f-7838146d9ab7,kanji,5,達,Yes,0.1,0,タク,たち,people; reach,,
+05d38fcc-8a73-4fc5-9988-7902784dd7e1,kanji,5,部,Yes,0.1,0,ブ,へや,room,,
+156ea775-6fa7-4058-93b1-4ff763889ba4,kanji,4,医,Yes,0.1,0,イ,,Doctor,,
+782b9f83-15f3-4b72-becc-ab8d96412ca4,kanji,4,帰,Yes,0.1,0,カイ,かえる,To return,,
+f35ee518-e680-476a-bd4a-7f572fdb9633,kanji,4,立入,Yes,0.1,0,リツ,,entering,,
+7c6a3d02-77b0-4c90-be80-8d700e8ce13d,kanji,4,遅い,Yes,0.1,0,チ,おそ-い,Late/quick (slow),,
+f8e94263-dd80-4c5a-b2aa-15c1ba6d1ac9,kanji,4,食,Yes,0.1,0,SHOKU,た・べ,to eat; food,,
+e3165737-5165-479f-9627-3a27d3c71622,kanji,3,勝,Yes,0.1,0,カツ,かつ,To win,,
+9ede09f9-5e09-4cf9-9a02-b89126109230,kanji,3,育,Yes,0.1,0,イク,,nurture,,
+31f77276-3e41-4192-8562-57d9b892bb5c,kanji,3,落,Yes,0.1,0,ロク,おと（す）,to drop,,
+09481729-158c-4088-8dc2-a7afa7334107,kanji,3,試,Yes,0.1,0,,,"test, trial",試験,Exam
+5264eabb-7ade-446a-a2e4-25e0d44ae71b,kanji,3,誌,Yes,0.1,0,シ,,Periodical,,
+4a938415-90d7-45ac-8227-79d1775b0ade,kanji,3,閉,Yes,0.1,0,ヒエ,し（める）,to close,,
+5a9d202f-db6c-43c4-a37b-ec8191644303,kanji,3,開,Yes,0.1,0,カイ,あ（ける）,to open,,
+7d2ccbd9-5796-447b-955c-0c7b6aa5a094,kanji,3,雑,Yes,0.1,0,ツマ,ざつ,Miscellaneous,,
+0eec6cb7-a0fb-4fff-881c-25400948d894,kanji,3,高,Yes,0.1,0,タカ,たか,high; tall; expensive,,
+10ef896e-e495-4d97-ad77-9ab4ca130a62,kanji,2,書,Yes,0.1,0,ショ,かく,Writing,,
+3a420adc-db02-4011-b1e4-2c891c4f9930,kanji,2,葉,Yes,0.1,0,ハ,は,Leaf,,
+2dc9efd3-8a41-4192-ab46-649286350467,vocab,5,ある,Yes,0.1,0,ある,,to exist (inanimate),お金がある。,There is money.
+e3bf2448-5605-4a2c-9c86-7b0527f29a78,vocab,5,いい,Yes,0.1,0,いい,,good (i-adjective),かっこいい (i-adj) - cool; handsome,
+acd31d28-9107-4a72-9fd5-4b45a535ac4e,vocab,5,いる,Yes,0.1,0,いる,,to exist (animate),いる。,Exist (animate).
+449a1801-d641-4202-bb20-5f84350ce8e1,vocab,5,ううん,Yes,0.1,0,ううん,,no (casual),アリス：ううん、明日じゃない。,"Alice: No, not tomorrow."
+fd7ca88e-7772-45c7-a5a2-9251c0f9bf86,vocab,5,うん,Yes,0.1,0,うん,,yes (casual),アリス：うん、学生。,"Alice: Yeah, (I) am."
+1d3d4437-d807-4e66-841a-8efc0359b7b3,vocab,5,おいしい,Yes,0.1,0,おいしい,,tasty (i-adjective),おいしい食べ物。,Tasty food.
+71218dc6-9c5f-4819-a8da-ca9195c876a5,vocab,5,する,Yes,0.1,0,する,,to do,ボブもする。,Bob also do.
+ea15255d-9d31-4764-a485-a0ddca6e876c,vocab,5,そう,Yes,0.1,0,そう,,that way,アリス：そうね。,"Alice: That is so, isn't it?"
+62de256f-ee44-42a8-b719-32e5de549fad,vocab,5,その,Yes,0.1,0,そ・の,,Short form of 'それの',そのシャツは誰の？,Whose shirt is that?
+8f47d9b1-6126-41a1-ae46-bdebfd87f548,vocab,5,どう,Yes,0.1,0,どう,,how,,
+c6871ad7-14ba-4ef6-acc6-de263d416c13,vocab,5,どこ,Yes,0.1,0,どこ,,where,,
+562c55c9-9037-4b5b-8435-2d82456a464e,vocab,5,アリス,Yes,0.1,0,アリス,,Name (Alice),,
+d406925d-aa83-4927-a15c-e5b32e5a1961,vocab,5,イタリア,Yes,0.1,0,いたりあ,,Italy,,
+b1b8cdf5-3473-4c23-a421-3c5ecb2ad6f9,vocab,5,ビル,Yes,0.1,0,ビル,,building,,
+ebce4c06-ee21-4371-b9a7-52596e563163,vocab,5,ボブ,Yes,0.1,0,ボブ,,Name (Bob),,
+7d92b94e-7e72-4362-b14f-007caf741364,vocab,5,人,Yes,0.1,0,ひと,,person,人だ。,Is person.
+88157fde-b17d-47d3-a093-4fb650ff3761,vocab,5,今,Yes,0.1,0,いま,,now,今は忙しいの。,The thing is that (I'm) busy now.
+f9b0e25a-24c0-4cb6-a0c9-25270ec2c852,vocab,5,今日,Yes,0.1,0,きょう,,today,アリス：今日は試験だ。,Alice: Today is exam.
+f45f8d55-2b04-45d8-a0ff-09ba9102f188,vocab,5,元気,Yes,0.1,0,げんき,,healthy; lively,元気じゃなかった。,Was not well.
+7e82cd6e-9954-46fb-a62b-691823416a50,vocab,5,全部,Yes,0.1,0,ぜんぶ,,everything,映画は、全部見た。,"As for movie, saw them all."
+45b0cd1a-f48f-4fe1-b0c4-2c81c1a67e5d,vocab,5,出る,Yes,0.1,0,でる,,to come out,出る。,Come out.
+f4fb4445-ae83-44eb-b209-2c4888dbf3e6,vocab,5,分か,Yes,0.1,0,わか,,to understand,分かる。,Understand.
+bb96852d-79ff-4895-a030-8fc5dec30be4,vocab,5,友達,Yes,0.1,0,ともだち,,friend,友達じゃない。,Is not friend.
+1bb3ddcf-b5c8-4fa8-982b-7b0d885173ee,vocab,5,図書館,Yes,0.1,0,としょかん,,library,,
+38313dcb-48f5-48d5-9e9e-628e52d720e0,vocab,5,変わる,Yes,0.1,0,かわる,,To change,この町は、最近大きく変わった。,This town had changed greatly lately.
+ef6d0d4c-419f-4608-a0d2-08c7f8c91904,vocab,5,好き,Yes,0.1,0,すき,,Likable; desirable (na-adjective),ボブは魚が好きだ,Bob likes fish
+7a109a82-4c11-47ec-a250-c4c9c9ca4cc1,vocab,5,学校,Yes,0.1,0,がっこう,,school,,
+344a43e4-e9c6-42ce-b890-e186a0a21e11,vocab,5,学生,Yes,0.1,0,がくせい,,student,学生だ。,Is student.
+8d47bdd9-cb80-448f-8106-c4ff5e719938,vocab,5,寝る,Yes,0.1,0,ねる,,to sleep,寝る。,Sleep.
+e8e77ea7-9a40-4a90-9528-15ebb4e0107b,vocab,5,忙しい,Yes,0.1,0,いそがしい,,busy (i-adjective),今は忙しいの。,The thing is that (I'm) busy now.
+8fd0aeee-8184-443b-b130-01c19e4a434a,vocab,5,授業,Yes,0.1,0,じゅぎょう,,class,授業に行くのを忘れた。,Forgot the event of going to class.
+5fbe78c9-46d6-4f2b-88ef-c1eb6a4bbb31,vocab,5,教える,Yes,0.1,0,おしえる,,to teach; to inform,教える。,Teach.
+3e673b05-e66b-460c-93e9-2d2102163b4a,vocab,5,日本,Yes,0.1,0,にほん,,Japan,友達は、来年に日本に行く。,Friend go to Japan next year.
+5e8596f7-e12e-4c8b-85ee-d19355618838,vocab,5,日本語,Yes,0.1,0,にほんご,,Japanese (language),,
+9fce00ca-bdec-49d2-ae1e-2012a1317da6,vocab,5,明日,Yes,0.1,0,あした,,tomorrow,ボブ：ジョンは明日？,Bob: John is tomorrow?
+ecd320b3-857e-47ff-88bc-d39cf64bba42,vocab,5,映画,Yes,0.1,0,えいが,,movie,映画は、全部見た。,"As for movie, saw them all."
+fb8d6fcb-b605-4eb3-927a-9cf412b54907,vocab,5,昼ご飯,Yes,0.1,0,ひるごはん,,Lunch,レストランで昼ご飯を食べた。,Ate lunch at restaurant.
+7d3f3aaf-32bb-4aea-8e6f-a0124bcc054e,vocab,5,暇,Yes,0.1,0,ひま,,Free (as in not busy),何を暇に見る？,What to see when free?
+d9f32f70-74a0-4bab-a7d1-35e522e20364,vocab,5,最近,Yes,0.1,0,さいきん,,Lately,この町は、最近大きく変わった。,This town had changed greatly lately.
+4f397dae-f817-4fe6-b6f8-4665c762be0b,vocab,5,朝ご飯,Yes,0.1,0,あさごはん,,Breakfast,アリス：朝ご飯を食べるんじゃなかった。,Alice: It is that breakfast wasn't to eat.
+0344c2d0-fa58-4877-acca-941137b5c4a7,vocab,5,泳ぐ,Yes,0.1,0,およぐ,,to swim,泳ぐ。,Swim.
+1b1c6a3d-341d-40d6-8175-16e3e7e912da,vocab,5,登録,Yes,0.1,0,とうろく,,register,メールアドレスを登録した。,Registered email address.
+aa756b48-d9e1-461b-8a9f-1107f1b0f518,vocab,5,着る,Yes,0.1,0,きる,,to wear,着る。,Wear.
+f844fbe7-ae46-430d-927b-b7970bfaaf0f,vocab,5,私,Yes,0.1,0,わたし,,I/me/myself,私が学生。,I am the student.
+52757756-ef16-41c9-bc1b-b7eec9cdc775,vocab,5,習う,Yes,0.1,0,ならう,,to learn,,
+bcfb2edd-4613-4cea-b0bb-e725cf4c10c8,vocab,5,考える,Yes,0.1,0,かんがえる,,to think,考える。,Think.
+9abfa2ec-7dd9-4552-a02a-094d61af6375,vocab,5,聞く,Yes,0.1,0,きく,,to ask; to listen,聞く。,Ask/listen.
+94358b8d-18c2-439e-b054-1bf33d34b94a,vocab,5,行く,Yes,0.1,0,いく,,To go,家へ帰らない。,Not go home toward house.
+a0a5781a-2d00-4990-849a-881ef5fdb4d8,vocab,5,見る,Yes,0.1,0,みる,,to see,見る。,See.
+e84b3b30-8d04-4597-80a1-3b25eeaa4965,vocab,5,親切,Yes,0.1,0,しんせつ,,Kind (na-adjective),友達は親切,Friend is kind
+b0b36d35-55c5-4cf4-95c9-d3a086fce6da,vocab,5,試験,Yes,0.1,0,しけん,,exam,アリス：今日は試験だ。,Alice: Today is exam.
+61afddf3-458f-4032-a1ec-e0620d7927c2,vocab,5,話す,Yes,0.1,0,はなす,,to speak,話す。,Speak.
+84aefadb-cc5d-4851-ad10-2553a6185f33,vocab,5,誰,Yes,0.1,0,だれ,,Who,誰が学生？,Who is the student?
+65513d86-c8d4-4d49-bf32-fc918108ce82,vocab,5,買う,Yes,0.1,0,かう,,To buy,本と雑誌と葉書を買った。,"Bought book, magazine, and post card."
+450ce815-c196-4db7-bda1-8e673db4bf08,vocab,5,起きる,Yes,0.1,0,おきる,,to wake; to occur,起きる。,Wake up.
+12974c40-3123-4bd4-a09c-d740dabbda00,vocab,5,部屋,Yes,0.1,0,へや,,room,部屋にくる。,Come to room.
+570465f3-c1d9-4331-9dcf-c71e3b91bf35,vocab,5,静か,Yes,0.1,0,しずか,,Quiet (na-adjective),静かな人,Quiet person
+92177e59-e2f8-4f83-a773-e23e9fb2706c,vocab,5,面白い,Yes,0.1,0,おも・しろ・い,,interesting,アリス：おもしろい映画だったね。,"Alice: That was an interesting movie, wasn't it?"
+851ca4c3-537d-427d-ae4f-468bbdc3c536,vocab,5,食べる,Yes,0.1,0,たべる,,to eat,食べる。,Eat. (I eat/she eats/they eat)
+d9f8ad0d-cbee-4a0a-8219-086045534a6b,vocab,5,食べ物,Yes,0.1,0,たべもの,,food,おいしい食べ物。,Tasty food.
+96354e7c-9bae-4b0e-80b8-029a46aef89a,vocab,5,飲む,Yes,0.1,0,のむ,,to drink,ジュースを飲んだ。,Drank juice.
+b27271a8-7834-415f-bac5-2583fb3ddd9b,vocab,5,高い,Yes,0.1,0,たかい,,high; tall; expensive (i-adjective),高いビル。,Tall building.
+8f4d4790-3267-48b7-a335-27e36dc1ab68,vocab,5,魚,Yes,0.1,0,さかな,,Fish,ボブは魚が好きだ,Bob likes fish
+0731a671-c270-488f-8f85-9a8b43ec8ddd,vocab,4,あまり／あんまり,Yes,0.1,0,あまり／あんまり,,not very (when used with negative),値段が高いレストランはあまり好きじゃない。,Don't like high price restaurants very much.
+2631ff70-e894-4dc8-92e0-4b7eaa2565f0,vocab,4,かっこいい,Yes,0.1,0,かっこいい,,cool; handsome (i-adjective),,
+89190cc4-fab2-4e41-9f93-f82d6b8340e3,vocab,4,かわいい,Yes,0.1,0,おも・し・ろい,,Cute/interesting,白いのは、かわいい。,Thing that is white is cute.
+f40e91af-8e38-4dd8-a04d-5b5d67aa3e2f,vocab,4,こと,Yes,0.1,0,こ・と,,Event/matter,忘れることがない,Not to forget
+b61cac67-ffe0-4f85-8c8d-821e0b9d1d2d,vocab,4,たくさん,Yes,0.1,0,たんまり,,A lot (amount),映画をたくさん見た。,Saw a lot of movies.
+6bf90e20-87a6-4bb6-89b8-d906532645c8,vocab,4,カップ,Yes,0.1,0,カップ,,Cup,飲み物やカップやナプキンは、いらない？,"You don't need (things like) drink, cup, or napkin, etc.?"
+32634c25-914c-42c5-a151-884c57bd15ac,vocab,4,シャツ,Yes,0.1,0,シャツ,,Shirt,靴やシャツを買う。,"Buy (things like) shoes and shirt, etc..."
+1ee097f9-ad59-4ee9-bd18-ccbbdfdea19c,vocab,4,ステーキ,Yes,0.1,0,ステーキ,,Steak,,
+0347bbd9-63af-4c37-8656-aa06fc5a39a6,vocab,4,センター,Yes,0.1,0,せんたー,,center,国際教育センターが新しくなった。,The International Education Center has been renovated.
+8290a402-fa5d-482f-bf17-7472d0fad280,vocab,4,ナイフ,Yes,0.1,0,ナイフ,,Knife,,
+b7f27357-41fa-4c5c-b9b1-67572aac165b,vocab,4,ナプキン,Yes,0.1,0,ナプキン,,Napkin,飲み物やカップやナプキンは、いらない？,"You don't need (things like) drink, cup, or napkin, etc.?"
+75998e82-b4e8-49ce-9960-72a1ffaf962b,vocab,4,フォーク,Yes,0.1,0,フォーク,,Fork,,
+23742944-2fd7-4af9-b7c4-7a844b86f39d,vocab,4,レストラン,Yes,0.1,0,レストラン,,restaurant,,
+a6de1527-361e-46fa-8720-601bee8a40c4,vocab,4,値段,Yes,0.1,0,ねだん,,price,値段が高いレストランはあまり好きじゃない。,Don't like high price restaurants very much.
+765d6fee-1670-4801-a8c3-96c84bcad2de,vocab,4,全然,Yes,0.1,0,ぜんぜん,,Not at all,最近、全然食べない。,"Lately, don't eat at all."
+f9216402-2fe0-4674-a1c8-16149fabb610,vocab,4,切る,Yes,0.1,0,き・る,,to cut,切る,To cut
+94f54b22-2720-477e-ac13-653809082f8e,vocab,4,医者,Yes,0.1,0,いしゃ,,Doctor,ジムは医者になる。,Jim will become doctor.
+c1ac5bdd-122b-4593-bd3e-2446fa4941d0,vocab,4,大学,Yes,0.1,0,だい・がく,,College,ボブは、アメリカの大学の学生だ。,Bob is a student of a college of America.
+1dfc0355-dec9-4caf-affb-27eb05e13a38,vocab,4,嫌い,Yes,0.1,0,きらい,,"distasteful, hateful (na-adjective)",嫌いな食べ物。,Hated food.
+9ab2921d-05f3-44b1-b1b3-faafc05ffa4a,vocab,4,帰る,Yes,0.1,0,かえ・る,,to go home,帰る,To go home
+05eeb80d-0ab5-45fb-be08-5992b842aea9,vocab,4,映画館,Yes,0.1,0,えいがかん,,Movie theater,映画館で見た。,Saw at movie theater.
+33b7ed7e-8f68-45e8-9b09-a1a378d1f459,vocab,4,白い,Yes,0.1,0,し・ろい,,White,白いのは、かわいい。,Thing that is white is cute.
+d49f38c5-9513-4dba-a7c6-90fcbe29a414,vocab,4,禁止,Yes,0.1,0,きんし,,"prohibition, ban",立入禁止の看板が設置されている。,A 'No Entry' sign has been installed.
+6d133f56-c75b-429f-beaf-168bdfc7590b,vocab,4,立派,Yes,0.1,0,りっぱ,,"fine, elegant",子供だったアリスが立派な大人になった。,The Alice who was a child became a fine adult.
+10723b78-a56a-4d67-a49d-90379b0d570d,vocab,4,葉書,Yes,0.1,0,はがき,,Postcard,,
+44cef641-9553-4b22-ac0a-c3092229b3dd,vocab,4,要る,Yes,0.1,0,い・る,,to need,要る,To need
+29990856-e831-4ee7-a3ee-e05d2e66715f,vocab,4,雑誌,Yes,0.1,0,ざっし,,Magazine,,
+4895bda7-a09b-491b-93ec-1c725ab3e788,vocab,4,靴,Yes,0.1,0,くつ,,Shoes,靴やシャツを買う。,"Buy (things like) shoes and shirt, etc..."
+28351c4e-f846-4a6c-94b4-d5e257764558,vocab,4,飲み物,Yes,0.1,0,の・み・もの,,Beverage,飲み物やカップやナプキンは、いらない？,"You don't need (things like) drink, cup, or napkin, etc.?"
+22fe0530-f809-47a0-bf7e-54f7ec43d90b,vocab,3,つく,Yes,0.1,0,つく,,to be attached; to turn on,電気がついた,The lights turned on
+faa3d564-3f26-4b6c-8861-27d7a5c0f989,vocab,3,つける,Yes,0.1,0,つける,,to attach; to turn on,電気をつけた,Turned on the lights
+c72567c6-0b53-4ed1-9e96-05bca23cd6fd,vocab,3,入る,Yes,0.1,0,はいる,,to enter,窓がどうして開いた？,Why has the window opened?
+93ced21a-e7c6-4363-a606-840d18317d3a,vocab,3,入れる,Yes,0.1,0,いれる,,to insert,箱に入れる,To put it in the box
+3841d177-c696-422b-bae8-8339ad2b8703,vocab,3,出す,Yes,0.1,0,だす,,to take out,誰が窓を開けた？,Who opened the window?
+faf86da3-0050-4d3a-a0b1-8d4c0256def1,vocab,3,勝ち,Yes,0.1,0,かち,,Victory,勝ちへ向かう。,Go towards victory.
+6ef53e8a-18e9-4b94-a299-7ec28cfc81b0,vocab,3,国際,Yes,0.1,0,こくさい,,international,国際会議,International conference
+33795106-2b7a-40a8-a759-00d42d7d0fe2,vocab,3,抜く,Yes,0.1,0,ぬく,,to extract,針を抜く,To remove the needle
+f841e47a-484c-4f18-b3d1-7e137e19f4dc,vocab,3,抜ける,Yes,0.1,0,ぬける,,to be extracted,鍵が抜けていた,The key had been removed
+4225bed9-5798-4234-a21c-368f127b8dac,vocab,3,教育,Yes,0.1,0,きょういく,,education,教育センターは多くの学生が利用する。,The education center is used by many students.
+3f436ff4-c3ff-44a2-aae5-c2d74cdf904c,vocab,3,消える,Yes,0.1,0,きえる,,to disappear,電気が消えた,The lights turned off
+2fd113e5-99a2-42f9-94fb-d4c5548cb6bd,vocab,3,消す,Yes,0.1,0,けす,,to erase,電気を消す,Turn off the lights
+cbba4b5a-4142-4b63-80ab-c067074adf0e,vocab,3,登場,Yes,0.1,0,とうじょう,,entry (on stage),映画の登場人物が紹介された。,The characters appearing in the movie were introduced.
+f84d46bf-3512-4325-8453-690e1c97d743,vocab,3,落ちる,Yes,0.1,0,おちる,,to fall,ボールが落ちた,The ball fell
+8fb1695d-9504-451c-a845-c0876733a85a,vocab,3,落とす,Yes,0.1,0,おとす,,to drop,電気を落とす,To drop the electricity
+1619e2f8-e427-4992-aaa6-075a60906e74,vocab,3,閉まる,Yes,0.1,0,しまる,,to be closed,窓が閉まった,The window closed
+bf8f4519-c4d5-4866-92d3-aa4bcf42908a,vocab,3,閉める,Yes,0.1,0,しめる,,to close,窓を閉めた,Closed the window
+b6630054-5b6e-4de7-b351-821dc1971d81,vocab,3,開く,Yes,0.1,0,あく,,to be opened,窓が開いた,The window opened
+de63f43e-d7f9-47d7-b092-a11f49a3ad98,vocab,3,開ける,Yes,0.1,0,あける,,to open,窓を開けた,Opened the window
