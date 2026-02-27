@@ -207,6 +207,60 @@ ${itemsJSON}
 Return all validated items (with corrections applied) in "validatedItems" and any missing concepts in "missingItems".`;
 }
 
+// ─── Deterministic Post-Processing ───────────────────────────
+
+const HIRAGANA_RE = /^[\u3040-\u309F\u30FC\u3001\u3002\u300C\u300D\u30FB\s]+$/;
+const KATAKANA_RE = /^[\u30A0-\u30FF\u30FC\u3001\u3002\u300C\u300D\u30FB\s]+$/;
+const ROMAJI_RE = /^[a-zA-Z\s\-.\/',()]+$/;
+
+/**
+ * Deterministic post-processing that catches errors AI validation misses:
+ * 1. Hiragana/katakana-only titles should not be type 'kanji' → convert to 'vocab'
+ * 2. Romaji readings are cleared (better no reading than wrong format)
+ * 3. Warns about mismatched examples
+ */
+function postProcessItems(items: ExtractedItem[]): ExtractedItem[] {
+  return items.map(item => {
+    // Rule 1: Hiragana/katakana-only titles cannot be kanji
+    if (item.type === 'kanji') {
+      if (HIRAGANA_RE.test(item.title) || KATAKANA_RE.test(item.title)) {
+        console.warn(`🔧 Post-process: "${item.title}" is not kanji, converting to vocab`);
+        item.type = 'vocab';
+        // Move onyomi/kunyomi to reading if present
+        if (item.onyomi || item.kunyomi) {
+          item.reading = item.reading || item.kunyomi || item.onyomi;
+          delete item.onyomi;
+          delete item.kunyomi;
+        }
+      }
+    }
+
+    // Rule 2: Clear romaji readings (should be kana)
+    if (item.reading && ROMAJI_RE.test(item.reading)) {
+      console.warn(`🔧 Post-process: "${item.title}" has romaji reading "${item.reading}", clearing`);
+      item.reading = undefined;
+    }
+    if (item.onyomi && ROMAJI_RE.test(item.onyomi)) {
+      console.warn(`🔧 Post-process: "${item.title}" has romaji onyomi "${item.onyomi}", clearing`);
+      item.onyomi = undefined;
+    }
+    if (item.kunyomi && ROMAJI_RE.test(item.kunyomi)) {
+      console.warn(`🔧 Post-process: "${item.title}" has romaji kunyomi "${item.kunyomi}", clearing`);
+      item.kunyomi = undefined;
+    }
+
+    // Rule 3: Log mismatched examples (but don't remove — they may still be useful)
+    if (item.example && item.title.length >= 2 && !item.example.includes(item.title)) {
+      // Only warn for vocab/kanji where we expect the title to appear in the example
+      if (item.type !== 'grammar') {
+        console.warn(`🔧 Post-process: "${item.title}" example doesn't contain the word: "${item.example}"`);
+      }
+    }
+
+    return item;
+  });
+}
+
 // ─── Public API ──────────────────────────────────────────────
 
 export interface ProcessOptions {
@@ -281,45 +335,51 @@ export async function processDocument(
     [documentId, fileName, fileType]
   );
 
-  // 4. Split into chunks and extract from each
-  // We use dynamic chunk size based on the model's capabilities
+  // 4. Split into chunks and extract from each (parallel, 5 concurrent)
+  const CONCURRENCY = 5;
   const textChunks = splitForExtraction(textContent, chunkSize);
   const allItems: ExtractedItem[] = [];
 
   try {
-    for (let i = 0; i < textChunks.length; i++) {
-      // Check for cancellation
-      if (options?.signal?.aborted) {
-        throw new Error('Process cancelled by user.');
-      }
+    for (let batchStart = 0; batchStart < textChunks.length; batchStart += CONCURRENCY) {
+      if (options?.signal?.aborted) throw new Error('Process cancelled by user.');
 
-      const progress = 0.1 + (i / textChunks.length) * 0.5; // 10% to 60%
-      options?.onProgress?.(progress, `Extracting part ${i + 1} of ${textChunks.length}...`);
+      const batchEnd = Math.min(batchStart + CONCURRENCY, textChunks.length);
+      const progress = 0.1 + (batchStart / textChunks.length) * 0.5;
+      options?.onProgress?.(progress, `Extracting parts ${batchStart + 1}-${batchEnd} of ${textChunks.length}...`);
 
-      const prompt = buildExtractionPrompt(textChunks[i], i, textChunks.length);
-      
-      // Rotate the model for this chunk to distribute API load
-      const currentDocModel = DOC_MODELS[i % DOC_MODELS.length];
+      // Set model once for this batch (all concurrent requests use the same model)
+      const currentDocModel = DOC_MODELS[batchStart % DOC_MODELS.length];
       client.setModel(currentDocModel);
-      console.log(`📄 Processing chunk ${i + 1}/${textChunks.length} using ${currentDocModel} (${textChunks[i].length} chars)...`);
 
-      const result = await client.generateJSON<ExtractionResult>(
-        prompt, 
-        EXTRACTION_SCHEMA,
-        options?.signal // Pass the abort signal
-      );
-      if (result.items && Array.isArray(result.items)) {
-        // Tag each item with its source chunk index
-        result.items.forEach(item => { item.sourceChunkIndex = i; });
-        allItems.push(...result.items);
+      const promises = [];
+      for (let i = batchStart; i < batchEnd; i++) {
+        console.log(`📄 Processing chunk ${i + 1}/${textChunks.length} using ${currentDocModel} (${textChunks[i].length} chars)...`);
+        const prompt = buildExtractionPrompt(textChunks[i], i, textChunks.length);
+        promises.push(
+          client.generateJSON<ExtractionResult>(prompt, EXTRACTION_SCHEMA, options?.signal)
+            .then(result => ({ index: i, result }))
+            .catch(err => {
+              console.warn(`⚠️ Chunk ${i + 1} failed:`, err);
+              return { index: i, result: { items: [] } as ExtractionResult };
+            })
+        );
       }
-      
-      // Standard delay to be polite to the API
-      if (i < textChunks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const results = await Promise.all(promises);
+      for (const { index, result } of results) {
+        if (result.items && Array.isArray(result.items)) {
+          result.items.forEach(item => { item.sourceChunkIndex = index; });
+          allItems.push(...result.items);
+        }
+      }
+
+      // Brief delay between batches to respect rate limits
+      if (batchEnd < textChunks.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
-    
+
     options?.onProgress?.(0.60, 'Extraction complete. Deduplicating...');
   } catch (err) {
     if ((err as Error).message === 'Process cancelled by user.') {
@@ -375,59 +435,71 @@ export async function processDocument(
     return true;
   });
 
-  // 6. Validation pass — cross-reference items against source text
+  // 6. Validation pass — use llama-3.3-70b for cross-referencing (stronger model)
   options?.onProgress?.(0.65, 'Validating extracted items against source...');
   if (options?.signal?.aborted) throw new Error('Process cancelled by user.');
+
+  // Use 70b model for validation — it has better multilingual knowledge
+  const VALIDATION_MODEL = 'llama-3.3-70b-versatile';
+  client.setModel(VALIDATION_MODEL);
+  console.log(`🔍 Using ${VALIDATION_MODEL} for validation pass`);
 
   let validatedItems = uniqueItems;
   try {
     const VALIDATION_BATCH_SIZE = 15;
+    const totalBatches = Math.ceil(uniqueItems.length / VALIDATION_BATCH_SIZE);
     const allValidated: ExtractedItem[] = [];
 
-    for (let batchStart = 0; batchStart < uniqueItems.length; batchStart += VALIDATION_BATCH_SIZE) {
+    // Process validation batches in parallel (5 concurrent)
+    for (let windowStart = 0; windowStart < totalBatches; windowStart += CONCURRENCY) {
       if (options?.signal?.aborted) throw new Error('Process cancelled by user.');
 
-      const batch = uniqueItems.slice(batchStart, batchStart + VALIDATION_BATCH_SIZE);
-      const batchNum = Math.floor(batchStart / VALIDATION_BATCH_SIZE) + 1;
-      const totalBatches = Math.ceil(uniqueItems.length / VALIDATION_BATCH_SIZE);
-      const validationProgress = 0.65 + (batchNum / totalBatches) * 0.20; // 65% to 85%
-      options?.onProgress?.(validationProgress, `Validating batch ${batchNum} of ${totalBatches}...`);
+      const windowEnd = Math.min(windowStart + CONCURRENCY, totalBatches);
+      const validationProgress = 0.65 + (windowStart / totalBatches) * 0.15;
+      options?.onProgress?.(validationProgress, `Validating batches ${windowStart + 1}-${windowEnd} of ${totalBatches}...`);
 
-      // Use the first selected model for validation
-      client.setModel(DOC_MODELS[0]);
-      console.log(`✅ Validating batch ${batchNum}/${totalBatches} (${batch.length} items)...`);
+      const promises = [];
+      for (let batchIdx = windowStart; batchIdx < windowEnd; batchIdx++) {
+        const batchStart = batchIdx * VALIDATION_BATCH_SIZE;
+        const batch = uniqueItems.slice(batchStart, batchStart + VALIDATION_BATCH_SIZE);
+        console.log(`✅ Validating batch ${batchIdx + 1}/${totalBatches} (${batch.length} items)...`);
 
-      const validationPrompt = buildValidationPrompt(batch, textContent);
-      const result = await client.generateJSON<ValidationResult>(
-        validationPrompt,
-        VALIDATION_SCHEMA,
-        options?.signal
-      );
-
-      if (result.validatedItems && Array.isArray(result.validatedItems)) {
-        allValidated.push(...result.validatedItems);
-      } else {
-        // If validation fails to return items, keep original batch
-        allValidated.push(...batch);
+        const validationPrompt = buildValidationPrompt(batch, textContent);
+        promises.push(
+          client.generateJSON<ValidationResult>(validationPrompt, VALIDATION_SCHEMA, options?.signal)
+            .then(result => ({ batchIdx, batch, result }))
+            .catch(err => {
+              console.warn(`⚠️ Validation batch ${batchIdx + 1} failed:`, err);
+              return { batchIdx, batch, result: { validatedItems: batch, missingItems: [] } as ValidationResult };
+            })
+        );
       }
 
-      // Add missing items (these are new items the model found in the source)
-      if (result.missingItems && Array.isArray(result.missingItems)) {
-        for (const missing of result.missingItems) {
-          if (missing.title && missing.type && missing.meaning) {
-            const normalizedMissing = normalizeTitle(missing.title);
-            if (!seen.has(normalizedMissing)) {
-              seen.add(normalizedMissing);
-              allValidated.push(missing);
-              console.log(`➕ Added missing item: ${missing.title}`);
+      const results = await Promise.all(promises);
+      for (const { result, batch } of results) {
+        if (result.validatedItems && Array.isArray(result.validatedItems)) {
+          allValidated.push(...result.validatedItems);
+        } else {
+          allValidated.push(...batch);
+        }
+
+        if (result.missingItems && Array.isArray(result.missingItems)) {
+          for (const missing of result.missingItems) {
+            if (missing.title && missing.type && missing.meaning) {
+              const normalizedMissing = normalizeTitle(missing.title);
+              if (!seen.has(normalizedMissing)) {
+                seen.add(normalizedMissing);
+                allValidated.push(missing);
+                console.log(`➕ Added missing item: ${missing.title}`);
+              }
             }
           }
         }
       }
 
-      // Delay between batches
-      if (batchStart + VALIDATION_BATCH_SIZE < uniqueItems.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      // Brief delay between validation windows
+      if (windowEnd < totalBatches) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
@@ -435,10 +507,12 @@ export async function processDocument(
     console.log(`✅ Validation complete: ${validatedItems.length} items (was ${uniqueItems.length} before validation)`);
   } catch (err) {
     if ((err as Error).message === 'Process cancelled by user.') throw err;
-    // If validation fails, fall back to unvalidated items
     console.warn('⚠️ Validation pass failed, using unvalidated items:', err);
     validatedItems = uniqueItems;
   }
+
+  // 6b. Deterministic post-processing — catches errors that AI validation misses
+  validatedItems = postProcessItems(validatedItems);
 
   options?.onProgress?.(0.87, 'Saving to database...');
 
