@@ -30,6 +30,16 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
     const [progressMessage, setProgressMessage] = useState('');
     const [uploadedDocs, setUploadedDocs] = useState<Array<{ documentId: string; filename: string; processed: number }>>([]);
     const abortController = useRef<AbortController | null>(null);
+    const [visibleKeys, setVisibleKeys] = useState<Set<number>>(new Set());
+
+    const toggleKeyVisibility = (index: number) => {
+      setVisibleKeys(prev => {
+        const next = new Set(prev);
+        if (next.has(index)) next.delete(index);
+        else next.add(index);
+        return next;
+      });
+    };
   
     const loadDocuments = useCallback(async () => {
         try {
@@ -300,16 +310,26 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
             </TouchableOpacity>
           </View>
 
-          {apiKeys.map((key, index) => (
-            <View key={index} style={styles.keyItem}>
-              <Text style={styles.keyText}>
-                Key {index + 1}: ••••{key.slice(-8)}
-              </Text>
-              <TouchableOpacity onPress={() => handleRemoveKey(index)}>
-                <Text style={styles.removeText}>Remove</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+          {apiKeys.map((key, index) => {
+            const isVisible = visibleKeys.has(index);
+            return (
+              <View key={index} style={styles.keyItem}>
+                <View style={{ flex: 1, marginRight: 10 }}>
+                  <Text style={styles.keyText} selectable={isVisible}>
+                    Key {index + 1}: {isVisible ? key : `••••${key.slice(-8)}`}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => toggleKeyVisibility(index)}>
+                    <Text style={styles.actionText}>{isVisible ? 'Hide' : 'Show'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleRemoveKey(index)}>
+                    <Text style={styles.removeText}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
 
           {apiKeys.length === 0 && (
             <Text style={styles.noKeysText}>
@@ -592,6 +612,10 @@ const styles = StyleSheet.create({
   },
   keyText: {
     color: '#fff',
+    fontSize: 14,
+  },
+  actionText: {
+    color: '#6366f1',
     fontSize: 14,
   },
   removeText: {

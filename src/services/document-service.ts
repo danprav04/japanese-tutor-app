@@ -47,7 +47,7 @@ const SEGMENTATION_SCHEMA = JSON.stringify({
           title: { type: 'string', description: 'The concept name (e.g., "は particle", "食べる", "日")' },
           type: { type: 'string', enum: ['vocab', 'grammar', 'kanji'] },
           jlptLevel: { type: 'integer', description: 'JLPT level estimate (5=easiest, 1=hardest)' },
-          summary: { type: 'string', description: 'One-sentence summary of what this topic covers' },
+          summary: { type: 'string', description: '2-3 bullet points summarizing what this topic covers (use dashes "-" for bullets, separated by newlines)' },
           startMarker: { type: 'string', description: 'The first 8-15 words of this section in the original text (exact match)' },
           endMarker: { type: 'string', description: 'The last 8-15 words of this section in the original text (exact match)' },
           dependsOn: {
@@ -76,6 +76,7 @@ ${chunkNote}
 3. The startMarker and endMarker must be EXACT quotes from the original text (8-15 words) that uniquely identify where each section starts and ends.
 4. For introductory/meta text that doesn't teach a specific concept, you may group it as a grammar-type topic with a descriptive title like "Introduction" or "Chapter Overview".
 5. If a topic references or builds on another topic in the same document, list it in dependsOn.
+6. The summary MUST be formatted as a bulleted list using dashes (-), containing 2-3 points explaining what the topic is, why it matters, and what the user will learn.
 
 ## JLPT Level Guidelines
 - Level 5 (N5): Basic particles, basic verb forms, common everyday vocabulary

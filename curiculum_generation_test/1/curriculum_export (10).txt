@@ -1,0 +1,130 @@
+Node ID,Type,JLPT Level,Title,Unlocked,Mastery Score,Attempts,Summary,Source File
+50d74393-be88-40cc-910d-fbded48f111e,grammar,5,Expressing state-of-being with 「だ」,Yes,0.1,0,"- Declares identity/state using 「だ」 attached to nouns/na-adjectives
+- 「だ」 makes statements more emphatic
+- Used in declarative contexts (e.g., ""Is student."")",Basic Grammar.txt
+8ce7562c-c0d6-4b23-b3d7-155c7ec1a396,grammar,5,Negative state-of-being conjugation (じゃない),Yes,0.1,0,"- Forms negatives by adding 「じゃない」 to nouns/na-adjectives
+- Example: 学生じゃない = ""Is not student""
+- Non-declarative (no 「だ」 needed for emphasis)",Basic Grammar.txt
+a8f83053-7dc9-4775-b64f-26aff73db07e,grammar,5,Past state-of-being conjugation (だった),Yes,0.1,0,"- Forms past tense with 「だった」
+- Negative past: Remove 「い」 and add 「かった」
+- Example: 友達じゃなかった = ""Was not friend""",Basic Grammar.txt
+69ebf188-2f30-4e8e-b6df-0dab91c0316a,grammar,5,Topic particle 「は」,Yes,0.1,0,"- Identifies sentence topic
+- Pronounced /wa/ when used as particle
+- Allows omission of repeated context (e.g., ""Alice is student."")",Basic Grammar.txt
+5dea4600-8973-4c18-ab1e-6aadb8978b90,grammar,5,Inclusive topic particle 「も」,Yes,0.1,0,"- Adds ""also"" to the topic
+- Used for additional topics (e.g., ""Tom is also student"")
+- Contrast with 「は」 for negation (e.g., ""Tom is not student"")",Basic Grammar.txt
+aa79c170-e56a-4292-bf93-66a965d14dc0,grammar,5,"Identifier particle 「が""",Yes,0.1,0,"- Identifies specific entities (e.g., ""Who is student?"")
+- Differs from 「は」 by specifying ""the one that...""
+- Answers implicit questions (e.g., ""John is student."")",Basic Grammar.txt
+50279389-561b-4cb2-8cfd-d54eb3533c8e,grammar,5,Na-adjectives and their usage,Yes,0.1,0,"- Modifies nouns with 「な」 (e.g., 静かな人 = ""quiet person"")
+- Shares conjugation rules with nouns
+- Can be used with particles like 「は」 or 「が""",Basic Grammar.txt
+54132b8f-6b77-47d4-8a4d-9b1f5d24004e,grammar,5,NA-Adjective 「好き」 and Descriptive Clauses,Yes,0.1,0,"- Explains how 「好き」 functions as a na-adjective
+- Demonstrates conjugations for positive/negative/ past states
+- Shows how to modify nouns with descriptive clauses",Basic Grammar.txt
+bd91089f-127d-452e-9b9c-505413e7abdd,grammar,5,I-Adjective Basics,Yes,0.1,0,"- Defines i-adjective characteristics
+- Distinguishes i-adjectives from na-adjectives
+- Explains direct noun modification",Basic Grammar.txt
+5b9e09fb-885d-4bbe-a406-400550b49f0b,grammar,5,I-Adjective Conjugations,Yes,0.1,0,"- Shows conjugation rules for positive/negative past
+- Provides examples for each form
+- Emphasizes no 「だ」 with i-adjectives",Basic Grammar.txt
+265635c1-022b-4479-88be-09e37009edc3,grammar,4,Exception: 「いい」 Conjugation,Yes,0.1,0,"- Discusses irregular conjugations for 「いい」
+- Explains root form 「よい」 rules
+- Includes 「かっこいい」 conjugation patterns",Basic Grammar.txt
+2013957c-b34d-4def-b169-2038d465f63e,grammar,5,Verb Role in Sentences,Yes,0.1,0,"- Establishes verbs as sentence requirement
+- Shows minimal sentence structure (just verb)
+- Introduces verb types as foundational",Basic Grammar.txt
+1421a34d-ac48-412b-9176-23c4e2d69051,grammar,5,Verb Classification (Ru/U-verbs),Yes,0.1,0,"- Teaches ru-verb/u-verb identification
+- Explains vowel sound patterns
+- Lists exception verbs (する/来る)",Basic Grammar.txt
+5585c3f2-d29a-4aaa-b949-2a86cd6337a6,grammar,5,Verb Example Sentences,Yes,0.1,0,"- Demonstrates ru/u-verbs in context
+- Shows direct object usage
+- Includes exception verb examples",Basic Grammar.txt
+339d27a1-cb65-4b36-82cf-099138ace9e9,vocab,5,Iru/Eru U-Verb List,Yes,0.1,0,"- Provides comprehensive u-verb list
+- Categorizes by proficiency level
+- Highlights irregular conjugation patterns",Basic Grammar.txt
+aca73b6a-d526-4582-be0d-febc48640fda,grammar,5,Negative Verb Conjugations,Yes,0.1,0,"- Teaches negative verb formation
+- Shows differences between verb types
+- Includes exception verb 「ある」",Basic Grammar.txt
+5049b3b6-6f1b-4f85-a798-a9bd1b236b3c,grammar,5,ある/いる: Existence for Inanimate/Animate Objects,Yes,0.1,0,"- ある is used for inanimate objects
+- いる is used for animate objects
+- Learn to choose correct verb based on object type",Basic Grammar.txt
+58de8873-8365-4cdb-9ff5-01a3c64656d2,grammar,4,Negative Verb Conjugation,Yes,0.1,0,"- Rules for ru-verbs: drop る + ない
+- Rules for u-verbs: vowel change + ない
+- Exceptions for する/くる/ある",Basic Grammar.txt
+cdfe2960-b616-4d69-9fa1-58c0c6f77be3,grammar,4,Past Tense Conjugation for Ru-verbs,Yes,0.1,0,"- Add た to ru-verbs for past tense
+- Examples with 食べる → 食べた
+- Focus on verb structure changes",Basic Grammar.txt
+29bcc80f-372a-423b-94ac-3c61556437e1,grammar,3,Past Tense Conjugation for U-verbs,Yes,0.1,0,"- Four categories for u-verbs (す/くぐ/むぶぬ/るうつ)
+- Special rules for 行く/する/来る
+- Examples with 話す → 話した",Basic Grammar.txt
+dc1169ab-c848-4178-8709-45e97719738d,grammar,4,Past-Negative Tense Conjugation,Yes,0.1,0,"- Remove い from ない + add かった
+- Applies to all verb types
+- Examples showing 食べない → 食べなかった",Basic Grammar.txt
+e5874181-c163-405f-b752-21c53ee5483c,grammar,5,Object Particle 「を」,Yes,0.1,0,"- Marks direct objects of verbs
+- Used with action verbs like 食べる/飲む
+- Optional with する + noun phrases",Basic Grammar.txt
+c92f1241-4523-402d-aab7-48781fc523d0,grammar,5,Target Particle 「に」,Yes,0.1,0,"- Specifies targets of actions
+- Used for locations, time, and existence verbs
+- Examples with 行く/来る/存在",Basic Grammar.txt
+7ec3c883-21fc-431b-b129-dd42915dd859,grammar,4,Directional Particle 「へ」,Yes,0.1,0,"- Expresses direction toward a target
+- Differs from に in emphasis on movement
+- Only used with directional verbs",Basic Grammar.txt
+6c1dc7f1-e6f9-4122-aaa3-3851ae00ef99,grammar,4,The 「へ」 Particle for Abstract Concepts,Yes,0.1,0,"- Explains correct usage of 「へ」 for abstract goals like becoming a doctor
+- Demonstrates how 「へ」 differs from 「に」 in directional context
+- Provides example 「勝ちへ向かう」 (Go towards victory)",Basic Grammar.txt
+c163386c-e3be-41fa-844e-82d2e5a8e1f6,grammar,4,The Contextual 「で」 Particle,Yes,0.1,0,"- Teaches how 「で」 specifies context/method of action
+- Includes examples like 「映画館で見た」 (Saw at movie theater)
+- Analogizes 「で」 to ""by way of"" for conceptual clarity",Basic Grammar.txt
+c6550b63-970b-455c-aa20-8008765b5a0e,grammar,5,Using 「何で」 as 'Why',Yes,0.1,0,"- Clarifies confusion between 「なにで」 (what with) and 「なんで」 (why)
+- Provides example dialogue showing different readings
+- Notes contextual disambiguation through answers",Basic Grammar.txt
+a9daece0-e778-4da5-a56c-df056f5f8a04,grammar,4,Location as Sentence Topic,Yes,0.1,0,"- Demonstrates combining topic markers with location particles
+- Shows 「には」/「にも」 usage in dialogue examples
+- Explains implicit sentence abbreviation in context",Basic Grammar.txt
+37322007-f787-4a27-a6aa-8998944c0aeb,grammar,4,Direct Object as Sentence Topic,Yes,0.1,0,"- Explains particle choice when direct object is topic
+- Highlights incorrect usage like 「をは」
+- Provides contrast between 「を」 and 「は」 particle roles",Basic Grammar.txt
+3b7ccb2b-89f6-445d-91d1-b48ff39c121d,grammar,3,Transitive/Intransitive Verbs,Yes,0.1,0,"- Distinguishes verb pairs like 「落とす/落ちる」
+- Shows particle differences in verb usage
+- Lists common verb pairs with Japanese/English equivalents",Basic Grammar.txt
+3445e124-fa05-4d5e-ba55-4868dda45367,grammar,3,Relative Clauses as Adjectives,Yes,0.1,0,"- Demonstrates verb/noun clauses modifying nouns directly
+- Explains limitations of 「だ」 in noun modification
+- Provides compound sentence examples like 「学生じゃない人」",Basic Grammar.txt
+b253281e-c2f5-40d8-9d10-6c4e222d6e3d,grammar,2,Japanese Sentence Structure and Verb Placement,Yes,0.1,0,"- Japanese sentences require the verb at the end
+- Subject, object, and other elements can appear in any order
+- Particles identify grammatical roles instead of word order",Basic Grammar.txt
+3b0427f4-9dbd-4c69-a5b7-e8f77e301a95,grammar,2,Japanese Sentence Order Rules,Yes,0.1,0,"- Main verb must always come at the end of the sentence
+- State-of-being implied with 「だ」
+- Relative clauses can create nested sentences",Basic Grammar.txt
+7ca3566a-e554-428c-b0cb-7be4319cd686,grammar,3,Inclusive 「と」 Particle,Yes,0.1,0,"- Combines nouns with ""and""
+- Indicates actions done together
+- Lists multiple items in a sentence",Basic Grammar.txt
+80506744-d5c9-47cc-8215-39a82966c43c,grammar,3,Vague Listing 「や」 and 「とか」 Particles,Yes,0.1,0,"- Lists items with ""and/or, etc.""
+- Implies incomplete list
+- 「や」 is formal, 「とか」 is colloquial",Basic Grammar.txt
+45b0c02f-e339-4ac3-8134-9305054cb80d,grammar,2,Possessive and Abstract 「の」 Particle,Yes,0.1,0,"- Creates possessive relationships
+- Forms abstract nouns from clauses
+- Modifies verbs/adjectives as nouns",Basic Grammar.txt
+0292e051-d3e6-4dab-b951-d7593e2817b9,grammar,2,Explanatory 「の」/「んだ」 Particle,Yes,0.1,0,"- Conveys explanatory tone
+- Used with declarative 「だ」/「です」
+- Conjugates with verb/adjective forms",Basic Grammar.txt
+820a2c07-a6a4-4ffd-9dfc-bb132e3f5001,grammar,4,Explanatory 「の」 for Seeking Explanations,Yes,0.1,0,"- Explains how 「の」 adds explanatory tone to sentences
+- Contrast with simple statements without explanation
+- Essential for asking ""why"" questions seeking justification",Basic Grammar.txt
+fe9f0c56-ffba-43a8-8990-913bd65ed7ba,grammar,5,Adverbs from Adjectives,Yes,0.1,0,"- Conversion rules for i-adjectives (replace い with く)
+- Conversion for na-adjectives (add particle に)
+- Examples showing contextual meaning differences",Basic Grammar.txt
+e35755a3-639d-412f-a37b-228631df10f3,grammar,5,Non-conjugated Adverbs,Yes,0.1,0,"- Adverbs like 全然 and たくさん that don't derive from adjectives
+- Usage without particles
+- Common expressions showing frequency/degree",Basic Grammar.txt
+9fdddd2e-4588-4fb5-b3ae-307586ebec8a,grammar,5,Sentence-ending Particle 「ね」,Yes,0.1,0,"- Used to seek agreement from listener
+- English equivalents: ""right?"" or ""isn't it?""
+- Examples showing conversational reinforcement",Basic Grammar.txt
+84f0f175-fdb7-40d0-97ae-1b5d1b583a17,grammar,5,Sentence-ending Particle 「よ」,Yes,0.1,0,"- Indicates informing listener of new information
+- English equivalent: ""you know...""
+- Combines with other particles as 「よね」",Basic Grammar.txt
+41b7f259-1e02-4269-8e31-2e2179e3ecfe,grammar,5,Combined Particle 「よね」,Yes,0.1,0,"- Combines explanatory 「よ」 and confirmation 「ね」
+- Conveys ""you know...isn't it?"" tone
+- Strict ordering requirement (cannot be reversed)",Basic Grammar.txt
