@@ -1,0 +1,165 @@
+Android Bundled 61ms index.tsx (1 module)
+ LOG  ✅ Standard Web APIs polyfilled for Hermes engine.
+ LOG  ✅ Database initialized
+ WARN  statusBarTranslucent and navigationBarTranslucent values are ignored when using react-native-edge-to-edge
+ LOG  🔑 Groq Proxy Client initialized. Model: qwen/qwen3-32b. BYOK active: true
+ LOG  🧹 All curriculum data deleted.
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 1/20 using qwen/qwen3-32b (3446 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 2824 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 2/20 using qwen/qwen3-32b (3269 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3016 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 3/20 using qwen/qwen3-32b (3105 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 1671 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 4/20 using qwen/qwen3-32b (3465 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 1891 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 5/20 using qwen/qwen3-32b (2971 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 1380 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 6/20 using qwen/qwen3-32b (3182 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3152 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 7/20 using qwen/qwen3-32b (3462 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3854 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 8/20 using qwen/qwen3-32b (3496 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3148 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 9/20 using qwen/qwen3-32b (3492 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Rate limit. Retrying in 1170ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 1957 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 10/20 using qwen/qwen3-32b (3497 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Bad request (400). Retrying in 3000ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Rate limit. Retrying in 3120ms (Attempt 2/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3087 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 11/20 using qwen/qwen3-32b (3410 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Bad request (400). Retrying in 3000ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 1153 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 12/20 using qwen/qwen3-32b (3438 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3818 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 13/20 using qwen/qwen3-32b (3487 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 2217 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 14/20 using qwen/qwen3-32b (3314 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Bad request (400). Retrying in 3000ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3700 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 15/20 using qwen/qwen3-32b (3498 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Bad request (400). Retrying in 3000ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 2253 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 16/20 using qwen/qwen3-32b (3490 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3541 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 17/20 using qwen/qwen3-32b (3434 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3462 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 18/20 using qwen/qwen3-32b (3455 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3379 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 19/20 using qwen/qwen3-32b (3482 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3186 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  📄 Processing chunk 20/20 using qwen/qwen3-32b (2335 chars)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Bad request (400). Retrying in 3000ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3498 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 1/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3324 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 2/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 4335 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 3/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Rate limit. Retrying in 5000ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3142 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 4/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Rate limit. Retrying in 4130ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 6472 chars
+ LOG  ➕ Added missing item: state-of-being conjugation summary
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 5/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Bad request (400). Retrying in 3000ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Rate limit. Retrying in 16270ms (Attempt 2/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 3060 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 6/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 1136 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 7/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 4932 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 8/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 5778 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 9/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Rate limit. Retrying in 7030ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 4053 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 10/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ WARN  ⚠️ Rate limit. Retrying in 6280ms (Attempt 1/3)
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 6684 chars
+ LOG  ➕ Added missing item: 過去形
+ LOG  ➕ Added missing item: 否定過去形
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 11/12 (15 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 2631 chars
+ LOG  🤖 Switched to model: qwen/qwen3-32b
+ LOG  ✅ Validating batch 12/12 (11 items)...
+ LOG  🚀 Sending request to Groq Direct (BYOK)
+ LOG  ✅ Received response from Groq. Length: 1948 chars
+ LOG  ✅ Validation complete: 161 items (was 176 before validation)
+ LOG  🤖 Switched to model: qwen/qwen3-32b
