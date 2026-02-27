@@ -30,6 +30,12 @@ interface ExtractedItem {
   exampleTranslation?: string;
   onyomi?: string;
   kunyomi?: string;
+  sourceChunkIndex?: number;
+}
+
+interface ValidationResult {
+  validatedItems: ExtractedItem[];
+  missingItems: ExtractedItem[];
 }
 
 interface ExtractionResult {
@@ -112,6 +118,93 @@ ${text}
 ---
 
 Extract up to 15 items. Only include items actually present in the text above.`;
+}
+
+// ─── Validation Prompt ───────────────────────────────────────
+
+const VALIDATION_SCHEMA = JSON.stringify({
+  type: 'object',
+  properties: {
+    validatedItems: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          type: { type: 'string', enum: ['vocab', 'grammar', 'kanji'] },
+          jlptLevel: { type: 'integer' },
+          reading: { type: 'string' },
+          meaning: { type: 'string' },
+          example: { type: 'string' },
+          exampleTranslation: { type: 'string' },
+          onyomi: { type: 'string' },
+          kunyomi: { type: 'string' },
+        },
+        required: ['title', 'type', 'jlptLevel', 'meaning'],
+      },
+    },
+    missingItems: {
+      type: 'array',
+      description: 'Important concepts from the source that were not extracted',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          type: { type: 'string', enum: ['vocab', 'grammar', 'kanji'] },
+          jlptLevel: { type: 'integer' },
+          reading: { type: 'string' },
+          meaning: { type: 'string' },
+          example: { type: 'string' },
+          exampleTranslation: { type: 'string' },
+          onyomi: { type: 'string' },
+          kunyomi: { type: 'string' },
+        },
+        required: ['title', 'type', 'jlptLevel', 'meaning'],
+      },
+    },
+  },
+});
+
+function buildValidationPrompt(items: ExtractedItem[], sourceText: string): string {
+  const itemsJSON = JSON.stringify(items, null, 2);
+  
+  // Truncate source text if too long (keep first 6000 chars which covers most lessons)
+  const truncatedSource = sourceText.length > 6000
+    ? sourceText.substring(0, 6000) + '\n... [truncated]'
+    : sourceText;
+
+  return `You are a Japanese language data validator. Below is a set of extracted curriculum items and the original source text they were extracted from.
+
+Your job is to CROSS-REFERENCE each item against the source text and fix any errors.
+
+## Validation Rules
+
+1. **Kanji readings**: Verify onyomi (katakana) and kunyomi (hiragana) are correct. Use your knowledge of standard Japanese kanji readings.
+   - Common errors to fix: 閉 onyomi should be ヘイ (not ヒエ), 落 should be ラク (not ロク), 雑 should be ザツ (not ツマ), 話 onyomi should be ワ (not ワダ)
+   - Hiragana characters (あ, い, う, etc.) are NOT kanji — change their type to "vocab"
+
+2. **Vocab readings**: Verify the reading field actually matches the word. For example, かわいい should NOT have reading おもしろい.
+
+3. **Examples**: Each item's example sentence should actually demonstrate THAT item. For example, a 「も」 entry should not use a sentence that only contains 「は」.
+
+4. **Missing concepts**: Identify up to 10 important grammar/vocab items that are EXPLICITLY TAUGHT in the source text but MISSING from the extracted items. Especially check for:
+   - Sentence-ending particles (ね, よ, よね)
+   - State-of-being forms
+   - Verb conjugation patterns
+
+5. **Do NOT remove items** — only correct errors in existing items and add missing ones.
+
+## Source Text
+---
+${truncatedSource}
+---
+
+## Extracted Items to Validate
+---
+${itemsJSON}
+---
+
+Return all validated items (with corrections applied) in "validatedItems" and any missing concepts in "missingItems".`;
 }
 
 // ─── Public API ──────────────────────────────────────────────
@@ -200,8 +293,8 @@ export async function processDocument(
         throw new Error('Process cancelled by user.');
       }
 
-      const progress = 0.1 + (i / textChunks.length) * 0.8; // 10% to 90%
-      options?.onProgress?.(progress, `Analyzing part ${i + 1} of ${textChunks.length}...`);
+      const progress = 0.1 + (i / textChunks.length) * 0.5; // 10% to 60%
+      options?.onProgress?.(progress, `Extracting part ${i + 1} of ${textChunks.length}...`);
 
       const prompt = buildExtractionPrompt(textChunks[i], i, textChunks.length);
       
@@ -216,6 +309,8 @@ export async function processDocument(
         options?.signal // Pass the abort signal
       );
       if (result.items && Array.isArray(result.items)) {
+        // Tag each item with its source chunk index
+        result.items.forEach(item => { item.sourceChunkIndex = i; });
         allItems.push(...result.items);
       }
       
@@ -225,7 +320,7 @@ export async function processDocument(
       }
     }
     
-    options?.onProgress?.(0.95, 'Saving to database...');
+    options?.onProgress?.(0.60, 'Extraction complete. Deduplicating...');
   } catch (err) {
     if ((err as Error).message === 'Process cancelled by user.') {
         await db.execute(
@@ -280,10 +375,77 @@ export async function processDocument(
     return true;
   });
 
-  // 6. Insert extracted items into curriculum + create flashcards
+  // 6. Validation pass — cross-reference items against source text
+  options?.onProgress?.(0.65, 'Validating extracted items against source...');
+  if (options?.signal?.aborted) throw new Error('Process cancelled by user.');
+
+  let validatedItems = uniqueItems;
+  try {
+    const VALIDATION_BATCH_SIZE = 15;
+    const allValidated: ExtractedItem[] = [];
+
+    for (let batchStart = 0; batchStart < uniqueItems.length; batchStart += VALIDATION_BATCH_SIZE) {
+      if (options?.signal?.aborted) throw new Error('Process cancelled by user.');
+
+      const batch = uniqueItems.slice(batchStart, batchStart + VALIDATION_BATCH_SIZE);
+      const batchNum = Math.floor(batchStart / VALIDATION_BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(uniqueItems.length / VALIDATION_BATCH_SIZE);
+      const validationProgress = 0.65 + (batchNum / totalBatches) * 0.20; // 65% to 85%
+      options?.onProgress?.(validationProgress, `Validating batch ${batchNum} of ${totalBatches}...`);
+
+      // Use the first selected model for validation
+      client.setModel(DOC_MODELS[0]);
+      console.log(`✅ Validating batch ${batchNum}/${totalBatches} (${batch.length} items)...`);
+
+      const validationPrompt = buildValidationPrompt(batch, textContent);
+      const result = await client.generateJSON<ValidationResult>(
+        validationPrompt,
+        VALIDATION_SCHEMA,
+        options?.signal
+      );
+
+      if (result.validatedItems && Array.isArray(result.validatedItems)) {
+        allValidated.push(...result.validatedItems);
+      } else {
+        // If validation fails to return items, keep original batch
+        allValidated.push(...batch);
+      }
+
+      // Add missing items (these are new items the model found in the source)
+      if (result.missingItems && Array.isArray(result.missingItems)) {
+        for (const missing of result.missingItems) {
+          if (missing.title && missing.type && missing.meaning) {
+            const normalizedMissing = normalizeTitle(missing.title);
+            if (!seen.has(normalizedMissing)) {
+              seen.add(normalizedMissing);
+              allValidated.push(missing);
+              console.log(`➕ Added missing item: ${missing.title}`);
+            }
+          }
+        }
+      }
+
+      // Delay between batches
+      if (batchStart + VALIDATION_BATCH_SIZE < uniqueItems.length) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    validatedItems = allValidated;
+    console.log(`✅ Validation complete: ${validatedItems.length} items (was ${uniqueItems.length} before validation)`);
+  } catch (err) {
+    if ((err as Error).message === 'Process cancelled by user.') throw err;
+    // If validation fails, fall back to unvalidated items
+    console.warn('⚠️ Validation pass failed, using unvalidated items:', err);
+    validatedItems = uniqueItems;
+  }
+
+  options?.onProgress?.(0.87, 'Saving to database...');
+
+  // 7. Insert validated items into curriculum + create flashcards
   let importedCount = 0;
 
-  for (const item of uniqueItems) {
+  for (const item of validatedItems) {
     try {
       if (!item.title || !item.type || !item.meaning) continue;
       const validTypes = ['vocab', 'grammar', 'kanji'];
@@ -294,6 +456,7 @@ export async function processDocument(
         reading: item.reading,
         example: item.example,
         exampleTranslation: item.exampleTranslation,
+        sourceChunkIndex: item.sourceChunkIndex,
       };
 
       if (item.type === 'kanji') {
@@ -333,7 +496,7 @@ export async function processDocument(
     }
   }
 
-  // 7. Mark document as processed
+  // 8. Mark document as processed
   await db.execute(
     `UPDATE documents SET processed = 1, total_chunks = ? WHERE document_id = ?`,
     [ragChunks.length, documentId]
