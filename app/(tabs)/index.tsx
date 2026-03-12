@@ -176,7 +176,7 @@ export default function ChatScreen() {
         setCurrentThreadId(threadId);
       }
 
-      const { text: response, progressUpdates, curriculumStatus: status } = await sendMessage(threadId, userMessage.text);
+      const { text: response, progressUpdates, progressItemNames, curriculumStatus: status } = await sendMessage(threadId, userMessage.text);
       setCurriculumStatus(status);
       console.log('📱 ChatScreen received response:', { length: response.length, curriculumStatus: status });
 
@@ -189,9 +189,12 @@ export default function ChatScreen() {
       setMessages((prev) => GiftedChat.append(prev, [aiMessage]));
 
       if (progressUpdates > 0) {
+        const itemList = progressItemNames.length > 0
+          ? progressItemNames.join(', ')
+          : `${progressUpdates} item${progressUpdates > 1 ? 's' : ''}`;
         const progressNotif: IMessage = {
           _id: `prog-notif-${Date.now()}`,
-          text: `📊 Progress updated for ${progressUpdates} item${progressUpdates > 1 ? 's' : ''}!`,
+          text: `📊 Progress: ${itemList}`,
           createdAt: new Date(),
           user: SENSEI_USER,
           system: true,

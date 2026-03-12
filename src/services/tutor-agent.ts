@@ -97,6 +97,7 @@ export function createNewThread(): string {
 export async function sendMessage(threadId: string, userMessage: string): Promise<{
   text: string;
   progressUpdates: number;
+  progressItemNames: string[];
   curriculumStatus: CurriculumStatus;
 }> {
   const client = getGroqClient();
@@ -217,40 +218,54 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
 
   // Record progress updates (BKT mastery)
   let progressUpdates = 0;
+  const progressItemNames: string[] = [];
   for (const update of updates) {
     try {
       // Normalize the item name (AI may add extra context like "は — Topic Marker")
       const itemName = normalizeQuotes(update.item).trim();
       const nodes = await searchNodes(itemName);
       
-      // Try multiple matching strategies:
-      // 1. Exact match
+      // Try multiple matching strategies (strict to loose):
+      // 1. Exact title match
       let match = nodes.find((n) => n.title === itemName);
       
-      // 2. The item name contains the title (AI adds extra like "は — Topic Marker")
+      // 2. The item name starts with the title (AI adds extra like "は — Topic Marker")
       if (!match) {
         match = nodes.find((n) => itemName.startsWith(n.title));
       }
       
-      // 3. The title contains the item name
-      if (!match) {
+      // 3. The title starts with the item name — only for longer names (>2 chars)
+      //    Short names like "だ" would match too many items via LIKE %だ%
+      if (!match && itemName.length > 2) {
         match = nodes.find((n) => n.title.startsWith(itemName));
       }
       
       // 4. Split on " — " or " - " and match just the first part
       if (!match) {
         const cleanItem = itemName.split(/\s*[—\-]\s*/)[0].trim();
-        if (cleanItem) {
+        if (cleanItem && cleanItem !== itemName) {
           const cleanNodes = await searchNodes(cleanItem);
           match = cleanNodes.find((n) => n.title === cleanItem) 
-               || cleanNodes.find((n) => n.title.startsWith(cleanItem))
-               || cleanNodes[0]; // Best fuzzy match
+               || cleanNodes.find((n) => cleanItem.length > 2 && n.title.startsWith(cleanItem));
+          // No loose fallback — only match if we're confident
+        }
+      }
+
+      // 5. For very short items (1-2 chars), try matching against title fragments
+      //    e.g. "だ" should match "Expressing state-of-being with 「だ」"
+      if (!match && itemName.length <= 2) {
+        // Look for titles that contain the item wrapped in brackets (「だ」)
+        match = nodes.find((n) => n.title.includes(`「${itemName}」`));
+        // Or look for titles that end with the item name
+        if (!match) {
+          match = nodes.find((n) => n.title.endsWith(itemName));
         }
       }
       
       if (match) {
         await recordAnswer(match.nodeId, update.correct);
         progressUpdates++;
+        progressItemNames.push(`${match.title} ${update.correct ? '✅' : '❌'}`);
         console.log(`📊 Progress recorded: "${match.title}" correct=${update.correct}`);
       } else {
         console.warn(`Progress marker: item "${itemName}" not found in curriculum`);
@@ -307,7 +322,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
     console.warn('Failed to save conversation checkpoint:', err);
   }
 
-  return { text: response, progressUpdates, curriculumStatus };
+  return { text: response, progressUpdates, progressItemNames, curriculumStatus };
 }
 
 /**

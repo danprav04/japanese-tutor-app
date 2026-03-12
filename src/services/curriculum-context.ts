@@ -111,19 +111,22 @@ export async function buildCurriculumContext(): Promise<CurriculumContextResult>
     lines.push('');
   }
 
-  // Unlearned items — list in detail (these should be taught)
+  // Unlearned items — only show the NEXT few items to teach (gated progression)
+  // This prevents the AI from seeing/teaching advanced subjects too early
+  const VISIBLE_UNLEARNED_LIMIT = 5;
   if (unlearned.length > 0) {
-    lines.push('📕 NOT YET LEARNED (prioritize teaching these):');
-    const grouped = groupByType(unlearned);
+    const visibleUnlearned = unlearned.slice(0, VISIBLE_UNLEARNED_LIMIT);
+    lines.push(`📕 NOT YET LEARNED (teach these in order, one at a time):`);
+    const grouped = groupByType(visibleUnlearned);
     for (const [type, typeItems] of Object.entries(grouped)) {
       lines.push(`  ${typeLabel(type)}:`);
-      for (const item of typeItems.slice(0, 8)) {
+      for (const item of typeItems) {
         const detail = item.summary ? ` — ${item.summary}` : '';
         lines.push(`    • ${item.title}${detail}`);
       }
-      if (typeItems.length > 8) {
-        lines.push(`    ... and ${typeItems.length - 8} more`);
-      }
+    }
+    if (unlearned.length > VISIBLE_UNLEARNED_LIMIT) {
+      lines.push(`  (${unlearned.length - VISIBLE_UNLEARNED_LIMIT} more items locked — will be visible after completing these)`);
     }
     lines.push('');
   }

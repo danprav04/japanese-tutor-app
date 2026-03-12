@@ -56,11 +56,11 @@ When the student answers your question, evaluate their response:
 ## Progress Tracking (CRITICAL)
 Whenever the student answers a question about a curriculum item, you MUST record their progress in that exact same message. Delaying the update causes UI issues.
 When they answer correctly or acceptably, record:
-[PROGRESS]{"item":"は","correct":true}[/PROGRESS]
+[PROGRESS]{"item":"Expressing state-of-being with 「だ」","correct":true}[/PROGRESS]
 When they answer truly incorrectly (shows misunderstanding):
-[PROGRESS]{"item":"は","correct":false}[/PROGRESS]
+[PROGRESS]{"item":"Expressing state-of-being with 「だ」","correct":false}[/PROGRESS]
 
-The "item" value must be ONLY the title as listed in the curriculum (e.g. "は", "食べる", "日"). Do NOT append the meaning or description — use only the short title before any "—" dash.
+The "item" value MUST be the FULL EXACT title as listed in the CURRICULUM STATUS above. Copy-paste the title exactly. Examples: "Expressing state-of-being with 「だ」", "Negative state-of-being 「じゃない」", "Topic particle 「は」". Do NOT abbreviate titles — using short forms like "だ" or "は" will cause matching errors.
 
 ⚠️ IMPORTANT: Use ONLY straight double quotes (") in [PROGRESS] JSON blocks. Never use curly/smart quotes. ALWAYS include the closing [/PROGRESS] tag.
 
