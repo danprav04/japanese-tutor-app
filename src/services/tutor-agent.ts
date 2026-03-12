@@ -201,9 +201,9 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   const fullPrompt = `${contextParts}${dictionaryContext}\n\n---\n\n${conversationContext}\n\nSensei:`;
 
   // Generate response
-  console.log('🤖 asking gemini...');
+  console.log('📱 User message:', userMessage);
   const rawResponse = await client.generate(fullPrompt);
-  console.log('🤖 got raw response');
+  console.log('🤖 AI raw response:', rawResponse);
 
   // Strip any [THINK] blocks the AI may still generate (legacy safety net)
   const afterThinking = stripThinkingBlocks(rawResponse);
@@ -212,6 +212,7 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   const { cleanText: afterProgress, updates } = parseProgressMarkers(afterThinking);
   const response = afterProgress || afterThinking;
 
+  console.log('🤖 AI parsed response:', response);
   console.log(`✂️ Parsed: ${rawResponse.length}→${response.length} chars, ${updates.length} progress`);
 
   // Record progress updates (BKT mastery)
