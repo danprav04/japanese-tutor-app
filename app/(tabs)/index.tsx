@@ -45,7 +45,7 @@ const ThinkBlock = ({ text }: { text: string }) => {
       </TouchableOpacity>
       {expanded && (
         <View style={styles.thinkContent}>
-          <Text style={styles.thinkText}>{text}</Text>
+          <Text style={styles.thinkText} selectable={true}>{text}</Text>
         </View>
       )}
     </View>
@@ -315,9 +315,29 @@ export default function ChatScreen() {
                     rules={{
                       // Disable default paragraph margin to fit better in bubble
                       paragraph: (node: any, children: any, parent: any, styles: any) => (
-                        <Text key={node.key} style={styles.paragraph}>
+                        <Text key={node.key} style={styles.paragraph} selectable={true}>
                           {children}
                         </Text>
+                      ),
+                      textgroup: (node: any, children: any, parent: any, styles: any) => (
+                        <Text key={node.key} style={styles.text} selectable={true}>
+                          {children}
+                        </Text>
+                      ),
+                      bullet_list: (node: any, children: any, parent: any, styles: any) => (
+                        <View key={node.key} style={styles.bullet_list}>
+                          {children}
+                        </View>
+                      ),
+                      ordered_list: (node: any, children: any, parent: any, styles: any) => (
+                        <View key={node.key} style={styles.ordered_list}>
+                          {children}
+                        </View>
+                      ),
+                      list_item: (node: any, children: any, parent: any, styles: any) => (
+                        <View key={node.key} style={styles.list_item}>
+                          <Text style={{ color: '#fff' }} selectable={true}>{children}</Text>
+                        </View>
                       ),
                     }}
                   >
