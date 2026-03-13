@@ -210,8 +210,17 @@ export async function sendMessage(threadId: string, userMessage: string): Promis
   const afterThinking = stripThinkingBlocks(rawResponse);
 
   // Parse embedded blocks — always chain cleaned text forward (no || fallback)
-  const { cleanText: afterProgress, updates } = parseProgressMarkers(afterThinking);
-  const response = afterProgress || afterThinking;
+  const { cleanText: afterProgress, updates: rawUpdates } = parseProgressMarkers(afterThinking);
+
+  // Programmatic guardrail: strip 👉 emoji (AI sometimes uses it to reveal answers)
+  let response = (afterProgress || afterThinking).replace(/👉/g, '•');
+
+  // Programmatic guardrail: block premature [PROGRESS] if user message is a non-answer
+  const NON_ANSWER_PATTERNS = /^\s*(hey|hi|hello|sure|ready|let'?s\s+(go|learn|continue|do it)|ok(ay)?|yes(\s+please)?|got it!?|what'?s\s+next|teach me|let me|sounds good|cool|nice|alright|yeah|yep|go ahead|i'?m ready)\s*[!.?]*\s*$/i;
+  const isNonAnswer = NON_ANSWER_PATTERNS.test(userMessage.trim());
+  const updates = isNonAnswer && rawUpdates.length > 0
+    ? (console.warn(`⚠️ Blocked ${rawUpdates.length} premature [PROGRESS] on non-answer: "${userMessage}"`), [])
+    : rawUpdates;
 
   console.log('🤖 AI parsed response:', response);
   console.log(`✂️ Parsed: ${rawResponse.length}→${response.length} chars, ${updates.length} progress`);
