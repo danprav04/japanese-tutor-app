@@ -59,7 +59,7 @@ The negative form will be covered in the next lesson.
 
 // ─── Programmatic guardrails (same as tutor-agent.ts) ────────
 
-const NON_ANSWER_PATTERNS = /^\s*(hey|hi|hello|sure|ready|let'?s\s+(go|learn|continue|do it)|ok(ay)?|yes(\s+please)?|got it!?|what'?s\s+next|teach me|let me|sounds good|cool|nice|alright|yeah|yep|go ahead|i'?m ready)\s*[!.?]*\s*$/i;
+const NON_ANSWER_PATTERNS = /^\s*(hey|hi|hello|sure|ready|let'?s\s+(go|learn|continue|do it)|ok(ay)?|yes(\s+please)?|got it!?|what'?s\s+next|teach me|let me|sounds good|cool|nice|alright|yeah|yep|yup|go ahead|i'?m ready|はい|うん|hai|nope|no|next|continue)\s*[!.?？]*\s*$/i;
 
 function applyGuardrails(rawResponse, userMessage) {
   // Strip 👉 emoji
@@ -71,7 +71,6 @@ function applyGuardrails(rawResponse, userMessage) {
   
   if (isNonAnswer && progressBlocks.length > 0) {
     console.log(`  🛡️ GUARDRAIL: Blocked ${progressBlocks.length} premature [PROGRESS] on "${userMessage}"`);
-    // Strip the progress blocks from the response
     response = response.replace(/\[PROGRESS\]\{[^}]+\}\[\/PROGRESS\]/g, '').trim();
   }
   
@@ -114,24 +113,36 @@ function checkViolations(response, context) {
     violations.push('SELF_ANSWER_HINT: Used 👉 hint');
   }
   
-  // 2. Quiz + explanation in same message
-  const hasExamples = (cleanResponse.match(/[•\-\*] .*[だですじゃ]/g) || []).length >= 3;
-  const hasBlank = cleanResponse.includes('___') || cleanResponse.includes('＿＿');
-  const hasQuizPrompt = /(?:translate|quiz|fill in|how do you say|what particle)/i.test(cleanResponse);
-  if (hasExamples && (hasBlank || hasQuizPrompt)) {
-    violations.push('EXPLAIN_AND_QUIZ_SAME_MSG: Explained (3+ examples) AND asked quiz in same message');
+  // 2. Quiz + explanation in same message (3+ examples AND a question)
+  const exampleLines = cleanResponse.match(/[•\-\*] .*[だですじゃった]/g) || [];
+  const hasBlank = cleanResponse.includes('___') || cleanResponse.includes('＿＿') || cleanResponse.includes('＝??');
+  const hasQuizPrompt = /(?:translate|quiz|fill in|how do you say|what particle|form the|try forming|complete the)/i.test(cleanResponse);
+  if (exampleLines.length >= 3 && (hasBlank || hasQuizPrompt)) {
+    violations.push('EXPLAIN_AND_QUIZ_SAME_MSG: Explained (3+ examples) AND asked quiz');
   }
 
-  // 3. Progress with abbreviated item name
+  // 3. Topic transition + quiz in same message
+  //    Detect: teaches a NEW topic (mentions "next topic", "let's learn", "moving to") and asks a question
+  const hasTransition = /(?:next topic|let'?s\s+(learn|move|start)|moving to|next up|now let'?s)/i.test(cleanResponse);
+  if (hasTransition && (hasBlank || hasQuizPrompt)) {
+    violations.push('TRANSITION_AND_QUIZ: Transitioned to new topic AND asked quiz in same message');
+  }
+
+  // 4. Insufficient examples (< 3) when introducing a new topic
+  if (hasTransition && exampleLines.length < 3 && exampleLines.length > 0) {
+    violations.push(`INSUFFICIENT_EXAMPLES: Introduced new topic with only ${exampleLines.length} example(s) (need 3+)`);
+  }
+
+  // 5. Progress with abbreviated item name
   const progressMatches = cleanResponse.match(/\[PROGRESS\]\{[^}]+\}\[\/PROGRESS\]/g) || [];
   for (const block of progressMatches) {
     const itemMatch = block.match(/"item"\s*:\s*"([^"]+)"/);
     if (itemMatch && itemMatch[1].length <= 3) {
-      violations.push(`SHORT_ITEM_NAME: Progress item "${itemMatch[1]}" is too short`);
+      violations.push(`SHORT_ITEM_NAME: Progress item "${itemMatch[1]}" too short`);
     }
   }
 
-  // 4. Missing progress on an actual answer (after guardrails)
+  // 6. Missing progress on an actual answer
   if (context.isActualAnswer && !progressMatches.length) {
     violations.push('MISSING_PROGRESS: Student answered but no [PROGRESS] recorded');
   }
@@ -143,7 +154,7 @@ function checkViolations(response, context) {
 
 const TEST_SCENARIOS = [
   {
-    name: '👋 Basic greeting and first lesson flow',
+    name: '👋 Basic greeting and first lesson',
     conversation: [
       { text: 'Hey', isActualAnswer: false },
       { text: 'Sure, let\'s learn!', isActualAnswer: false },
@@ -152,7 +163,7 @@ const TEST_SCENARIOS = [
     ],
   },
   {
-    name: '❌ Wrong answer flow', 
+    name: '❌ Wrong answer flow',
     conversation: [
       { text: 'Hi, teach me!', isActualAnswer: false },
       { text: 'Ready!', isActualAnswer: false },
@@ -160,14 +171,36 @@ const TEST_SCENARIOS = [
     ],
   },
   {
-    name: '⏭️ Progression to second topic',
+    name: '⏭️ Topic transition (should explain with 3+ examples, no quiz)',
     conversation: [
       { text: 'Hey', isActualAnswer: false },
       { text: 'Yes please!', isActualAnswer: false },
-      { text: 'これは本だ', isActualAnswer: true },
+      { text: '先生だ', isActualAnswer: true },
+      // After correct answer, AI should transition to next topic with full explanation
       { text: 'What\'s next?', isActualAnswer: false },
-      { text: 'Got it!', isActualAnswer: false },
-      { text: '友達じゃない', isActualAnswer: true },
+      // AI should explain じゃない with 3+ examples, NOT ask a quiz
+    ],
+  },
+  {
+    name: '🗣️ Japanese acknowledgments (はい, うん)',
+    conversation: [
+      { text: 'Hey', isActualAnswer: false },
+      { text: 'Yep', isActualAnswer: false },
+      { text: 'はい', isActualAnswer: false },
+      // はい should NOT trigger progress — it's an acknowledgment
+    ],
+  },
+  {
+    name: '📚 Full progression flow (explain→quiz→answer→transition→explain)',
+    conversation: [
+      { text: 'Hey', isActualAnswer: false },
+      { text: 'Yes!', isActualAnswer: false },
+      { text: '本だ', isActualAnswer: true },
+      { text: 'Next!', isActualAnswer: false },
+      // AI should explain new topic with 3+ examples here
+      { text: 'Got it', isActualAnswer: false },
+      // NOW AI should ask a quiz question
+      { text: '学生じゃない', isActualAnswer: true },
     ],
   },
 ];
@@ -175,7 +208,7 @@ const TEST_SCENARIOS = [
 // ─── Main test runner ────────────────────────────────────────
 
 async function runTests() {
-  console.log('🧪 Tutor Chat Test Harness (with guardrails)');
+  console.log('🧪 Tutor Chat Test Harness v2 (with guardrails)');
   console.log('═'.repeat(60));
   console.log(`Model: ${MODEL}`);
   console.log(`Proxy: ${PROXY_URL}\n`);
@@ -207,18 +240,16 @@ async function runTests() {
       try {
         const rawResponse = await callGroq(messages);
         
-        // Apply programmatic guardrails (same as the app)
+        // Apply guardrails
         const { response: guardedResponse, blockedProgress } = applyGuardrails(rawResponse, turn.text);
         if (blockedProgress) totalGuardrailBlocks++;
         
-        // Strip thinking for display
         const displayResponse = guardedResponse.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
         const truncated = displayResponse.length > 500 
           ? displayResponse.slice(0, 500) + '...' 
           : displayResponse;
         console.log(`🤖 Sensei: ${truncated}`);
 
-        // Check violations on the guarded response
         const violations = checkViolations(guardedResponse, {
           userMessage: turn.text,
           isActualAnswer: turn.isActualAnswer,
@@ -234,13 +265,10 @@ async function runTests() {
           console.log(`  ✅ No violations`);
         }
 
-        // Pass the guarded response to conversation history
         conversationHistory.push({ role: 'user', content: turn.text });
         conversationHistory.push({ role: 'assistant', content: guardedResponse });
         
-        // Rate limit protection
         await new Promise(r => setTimeout(r, 3000));
-
       } catch (err) {
         console.error(`  ⚠️ API Error: ${err.message}`);
         conversationHistory.push({ role: 'user', content: turn.text });
@@ -270,7 +298,7 @@ async function runTests() {
   }
   
   console.log(`\nTotal violations: ${totalViolations}`);
-  console.log(`Guardrail blocks: ${totalGuardrailBlocks} (premature progress prevented)`);
+  console.log(`Guardrail blocks: ${totalGuardrailBlocks}`);
   
   if (totalViolations === 0) {
     console.log('🎉 All scenarios passed!');
