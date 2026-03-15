@@ -117,13 +117,9 @@ export async function buildCurriculumContext(): Promise<CurriculumContextResult>
   if (unlearned.length > 0) {
     const visibleUnlearned = unlearned.slice(0, VISIBLE_UNLEARNED_LIMIT);
     lines.push(`📕 NOT YET LEARNED (teach these in order, one at a time):`);
-    const grouped = groupByType(visibleUnlearned);
-    for (const [type, typeItems] of Object.entries(grouped)) {
-      lines.push(`  ${typeLabel(type)}:`);
-      for (const item of typeItems) {
-        const detail = item.summary ? ` — ${item.summary}` : '';
-        lines.push(`    • ${item.title}${detail}`);
-      }
+    for (const item of visibleUnlearned) {
+      const detail = item.summary ? ` — ${item.summary}` : '';
+      lines.push(`  • "${item.title}" (${typeLabel(item.type)})${detail}`);
     }
     if (unlearned.length > VISIBLE_UNLEARNED_LIMIT) {
       lines.push(`  (${unlearned.length - VISIBLE_UNLEARNED_LIMIT} more items locked — will be visible after completing these)`);

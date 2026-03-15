@@ -31,20 +31,22 @@ console.log(`✅ Loaded system prompt (${SYSTEM_PROMPT.length} chars)`);
 const FAKE_CURRICULUM = `=== STUDENT CURRICULUM STATUS ===
 Total items: 39 | Mastered: 0 | Learning: 0 | New: 39
 
-🎯 TARGET LESSON: "Expressing state-of-being with 「だ」" — Declares a noun/na-adjective as the current state (grammar)
+🎯 TARGET LESSON: "Vocabulary for State-of-Being" — Essential nouns and adjectives (vocab)
 
 📕 NOT YET LEARNED (teach these in order, one at a time):
-  Grammar:
-    • Expressing state-of-being with 「だ」 — Declares a noun/na-adjective as the current state
-    • Negative state-of-being 「じゃない」 — Form the negative of だ for nouns/na-adjectives
-    • Past state-of-being 「だった」 — Form the past tense of だ
-    • Topic particle 「は」 — Defines the topic of a sentence
-    • Inclusive topic particle 「も」 — Adds "also/too" meaning to the topic
-  (34 more items locked — will be visible after completing these)`;
+  • "Vocabulary for State-of-Being" (Vocabulary) — Essential nouns and adjectives
+  • "Expressing state-of-being with 「だ」" (Grammar) — Declares a noun/na-adjective as the current state
+  • "Negative state-of-being 「じゃない」" (Grammar) — Form the negative of だ for nouns/na-adjectives
+  • "Past state-of-being 「だった」" (Grammar) — Form the past tense of だ
+  (35 more items locked — will be visible after completing these)`;
 
 const FAKE_SOURCE_MATERIAL = `[SOURCE MATERIAL - TARGET LESSON]
-Expressing State-of-Being
+Vocabulary for State-of-Being
+- 人 【ひと】 - person
+- 学生 【がく・せい】 - student
+- 元気 【げん・き】 - healthy; lively
 
+Expressing State-of-Being
 In Japanese, you can declare what something is by attaching 「だ」 to a noun or na-adjective.
 
 Examples:
@@ -53,8 +55,6 @@ Examples:
 - 元気だ — (It is) healthy/well
 
 Note: 「だ」 is used for declarative statements. In casual speech, it can be omitted when the state-of-being is implied by context. However, for formal/emphatic declarations, 「だ」 is required.
-
-The negative form will be covered in the next lesson.
 [/SOURCE MATERIAL]`;
 
 // ─── Programmatic guardrails (same as tutor-agent.ts) ────────
@@ -195,12 +195,21 @@ const TEST_SCENARIOS = [
     conversation: [
       { text: 'Hey', isActualAnswer: false },
       { text: 'Yes!', isActualAnswer: false },
-      { text: '本だ', isActualAnswer: true },
+      { text: '本', isActualAnswer: true }, // Answering vocab correctly
       { text: 'Next!', isActualAnswer: false },
-      // AI should explain new topic with 3+ examples here
+      // AI should explain new grammar topic with 3+ examples here
       { text: 'Got it', isActualAnswer: false },
-      // NOW AI should ask a quiz question
-      { text: '学生じゃない', isActualAnswer: true },
+      // NOW AI should ask a quiz question for the grammar topic
+      { text: '学生だ', isActualAnswer: true },
+    ],
+  },
+  {
+    name: '⏱️ Chronological teaching (Vocab before Grammar)',
+    conversation: [
+      { text: 'Hey', isActualAnswer: false },
+      { text: 'Let\'s start', isActualAnswer: false },
+      // First, it MUST teach the vocabulary, NOT the grammar with だ.
+      { text: '学生', isActualAnswer: true }, // Student answers the vocab quiz
     ],
   },
 ];

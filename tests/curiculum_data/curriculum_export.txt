@@ -1,0 +1,118 @@
+Node ID,Type,JLPT Level,Title,Unlocked,Mastery Score,Attempts,Summary,Source File
+d97924f0-2945-4552-9392-303ebf56caaa,grammar,5,Expressing state-of-being with 「だ」,No,0,0,"- Declares state-of-being by attaching 「だ」 to nouns/na-adjectives
+- Contrast with implied state-of-being through context
+- Emphatic use in declarative sentences",Basic Grammar.txt
+fc1cdde2-0116-46bd-8ace-24f4481f350f,grammar,5,Negative state-of-being conjugation,No,0,0,"- Form negative state-of-being with 「じゃない」
+- Contrast with past tense 「だった」
+- Negative past tense using 「じゃなかった」",Basic Grammar.txt
+8a80e08b-9803-4735-bf8c-057c55e70b06,grammar,5,Past state-of-being conjugation,No,0,0,"- Form past state-of-being with 「だった」
+- Negative past tense through 「じゃなかった」
+- Four-tense conjugation summary",Basic Grammar.txt
+6d55febd-f41b-4623-bc7f-2e6680da910a,grammar,4,Topic particle 「は」,No,0,0,"- Defines sentence topic
+- Context-dependent meaning clarification
+- Pronunciation shifts from /ha/ to /wa/",Basic Grammar.txt
+bc47790c-8741-4f2d-8adc-bea975dba739,grammar,4,Inclusive topic particle 「も」,No,0,0,"- Adds ""also"" to topic structure
+- Contrast with exclusive 「は」
+- Consistent negative inclusion patterns",Basic Grammar.txt
+29dd3106-8815-497e-84f6-54ae9e8c64b8,grammar,3,Identifier particle 「が」,No,0,0,"- Identifies unspecified entities
+- Contrast with 「は」 topic function
+- Answers implicit questions about identity",Basic Grammar.txt
+029d12be-4ccc-4a41-849b-d6130e283809,grammar,5,Na-adjective basics,No,0,0,"- Modifies nouns with 「な」
+- Shares noun conjugation rules
+- Examples of common na-adjectives",Basic Grammar.txt
+f1db088e-8a0b-421c-a836-52180c5b3ec9,grammar,4,Using 「好き」 to express likes/dislikes,No,0,0,"- Explains how to use 「好き」 with particles は and が to express likes/dislikes
+- Covers conjugations for past/present and positive/negative forms
+- Shows how to modify nouns using 「な」 with clauses like 「魚が好きな人」",Basic Grammar.txt
+09db8264-a3ff-4d53-b645-c44fde052867,grammar,3,I-adjective basics and exceptions,No,0,0,"- Defines i-adjectives by their ending 「い」 and conjugation patterns
+- Explains distinction from na-adjectives like 「綺麗」
+- Notes exceptions like 「嫌い」 and 「いい」 derived from verbs",Basic Grammar.txt
+d56945f8-2e11-4723-9c89-1cd495a31b8a,grammar,4,I-adjective conjugation rules,No,0,0,"- Teaches negative/non-past and past tense conjugations (e.g. 高い → 高くない → 高かった)
+- Demonstrates direct noun modification without 「な」
+- Shows descriptive clauses like 「値段が高いレストラン」",Basic Grammar.txt
+5077b30d-9539-4304-9073-2c8eb15d039d,grammar,4,Special conjugations of 「いい」 and 「かっこいい」,No,0,0,"- Explains irregular conjugation patterns for ""good"" (いい → よくない/よかった)
+- Demonstrates exception for compound adjectives like 「かっこいい」
+- Provides example sentences showing correct usage",Basic Grammar.txt
+29ffce8f-eb60-45a5-9dee-0c8257cfb65f,grammar,5,Verb basics and sentence structure,No,0,0,"- Introduces verbs as sentence-ending components
+- Explains Japanese sentences require only a verb
+- Shows basic verb examples like 吃る and ある",Basic Grammar.txt
+0f4fedcb-7907-47ce-8896-ec43a11c201e,grammar,4,Classifying verbs into ru-verbs and u-verbs,No,0,0,"- Teaches verb classification by final kana patterns
+- Explains how to identify ru-verbs (ends in 「る」 with preceding い/え)
+- Provides verb category examples and exception verbs",Basic Grammar.txt
+3a1b13d1-f366-4c46-a1db-d6bc6c08e34d,vocab,4,Iru/eru u-verbs appendix,No,0,0,"- Lists common u-verbs ending in 「る」 with /i/ or /e/ sounds
+- Includes verbs like 帰る、切る、知る at different proficiency levels
+- Shows irregular conjugation patterns for these verbs",Basic Grammar.txt
+08363078-6540-4b4f-ab81-1e4b5689513b,grammar,4,Negative verb conjugations,No,0,0,"- Teaches negative conjugation patterns for verbs
+- Explains special rules for exception verb 「ある」
+- Shows how negative forms are used in sentences",Basic Grammar.txt
+64d608af-a3aa-464e-95d5-bafa7862643b,grammar,4,Negative verb conjugation examples,No,0,0,"- Provides conjugation rules for ru-verbs and u-verbs
+- Shows negative/affirmative pairs like 食べる → 食べない
+- Includes example sentences with exception verbs",Basic Grammar.txt
+85835f49-2fe6-4cb5-8440-521ea932d145,grammar,5,Existence Verbs ある and いる,No,0,0,"- ある is used for inanimate objects, いる for animate
+- Negative of ある is ない
+- Choose based on animate/inanimate distinction",Basic Grammar.txt
+a51db86a-a9e5-44be-8a27-17d472c506bb,grammar,4,Past Tense Verb Conjugations,No,0,0,"- Ru-verbs: Drop る + た
+- U-verbs: 4 subcategories (す→した, ぐ→いだ etc)
+- Exceptions: 行く→行った",Basic Grammar.txt
+294cb366-ac39-4833-9365-0a4b4d266823,grammar,4,Direct Object Particle を,No,0,0,"- Marks direct objects of actions
+- Used with motion verbs (e.g. 街を歩く)
+- Optional with する",Basic Grammar.txt
+b3b18391-c6d9-4371-80c4-f1080b0e7215,grammar,4,Target Particle に,No,0,0,"- Specifies targets of actions/motion
+- Used with existence verbs (猫は部屋にいる)
+- Indicates time (先週に図書館に行った)",Basic Grammar.txt
+d26767e6-837e-4573-9406-af1a2f251e2e,grammar,4,Directional Particle へ,No,0,0,"- Expresses direction towards something
+- Fuzzier than に
+- Only used with directional motion verbs",Basic Grammar.txt
+fc4fa8f9-6169-4317-adda-28843fe369da,grammar,4,Particle 「へ」 for Abstract Goals,No,0,0,"- Explains how 「へ」 can indicate direction towards abstract concepts or future goals
+- Corrects the grammatically incorrect 「医者へなる」 to 「医者になる」
+- Provides example 「勝ちへ向かう」 (Go towards victory)",Basic Grammar.txt
+c47ff2ae-6d47-4f55-9b02-4a066025986a,grammar,4,Contextual Particle 「で」,No,0,0,"- Teaches how 「で」 specifies the context/method of an action
+- Provides examples like「映画館で見た」,「バスで帰る」
+- Explains the metaphorical meaning as ""by way of""",Basic Grammar.txt
+e8b6e8e8-0ca5-4a2f-b2df-8695ab06a8f1,grammar,4,Pronunciation of 「何で」 with 「で」,No,0,0,"- Clarifies the pronunciation of 「何で」 as 「なにで」 vs the colloquial 「なんで」 (meaning ""why"")
+- Explains the confusion between the two forms
+- Provides examples of both usages",Basic Grammar.txt
+5d422a53-1b1e-494e-b423-01f6d539b99b,grammar,4,Location as Sentence Topic,No,0,0,"- Shows how to use 「は」 and 「も」 with location particles (に/へ/で)
+- Provides dialogue examples showing topic creation
+- Explains abbreviation patterns in conversation",Basic Grammar.txt
+8c6b72c2-ed79-4150-862e-906e29b9512c,grammar,4,Direct Object as Sentence Topic,No,0,0,"- Explains the special rule for using topics without the 「を」 particle
+- Demonstrates correct/incorrect patterns with「日本語」examples
+- Warns against common particle errors",Basic Grammar.txt
+a18b3b46-dbab-4557-a693-8fda5b4b5077,grammar,4,Transitive and Intransitive Verbs,No,0,0,"- Presents verb pairs showing transitive (direct object) vs intransitive forms
+- Lists common verb pairs like「落とす/落ちる」
+- Explains particle usage differences between verb types",Basic Grammar.txt
+aff3b54e-fcfb-4324-a3f5-e95b07c6b2d6,grammar,3,Relative Clauses with Noun Modification,No,0,0,"- Shows how verb clauses function like adjectives to modify nouns
+- Explains the limitation of using「だ」
+- Provides examples of noun chaining in phrases",Basic Grammar.txt
+d14fc6a6-c35d-4d10-ad48-da17aad7e0ad,grammar,3,Relative Verb Clauses as Adjectives,No,0,0,"- Demonstrates complex sentence modification using verb clauses
+- Provides examples with highlighted relative clauses
+- Shows how to create detailed descriptions",Basic Grammar.txt
+3b99e58a-f956-43b4-beee-9754409ed72c,grammar,3,Japanese Sentence Order Concepts,No,0,0,"- Debunks myths about Japanese sentence structure
+- Introduces the concept of relative clauses as sentence building blocks
+- Sets up discussion for more complex syntactic patterns",Basic Grammar.txt
+c754d25f-665f-4f98-83f5-6e3aae2cbed2,grammar,4,Japanese Sentence Structure,No,0,0,"- Japanese sentences must end with a verb.
+- Particles define grammatical roles regardless of word order.
+- Examples like [Object][Subject][Verb] are valid if the verb is at the end.",Basic Grammar.txt
+155b93d0-787a-4311-8e4c-b19bcf409af4,grammar,4,Noun-Related Particles Overview,No,0,0,"- Introduces three particles (と, や, の) for grouping nouns.
+- Explains particles allow abstract noun creation and noun modification.
+- Notes particles will appear in future lessons even if not labeled as such.",Basic Grammar.txt
+d6f6bef3-c9a1-429c-8fe5-1b633a0b6b50,grammar,4,The Inclusive 「と」 Particle,No,0,0,"- Combines nouns with 'and' (similar to も but explicit).
+- Can show actions done with others (e.g., 「友達と話した」).
+- Examples include listing items or people involved in an action.",Basic Grammar.txt
+bb82f810-ccce-436d-a02f-51cfe94d3f33,grammar,4,The Vague Listing 「や」 and 「とか」 Particles,No,0,0,"- 「や」 lists items with implied incompleteness (like 'and/or etc').
+- 「とか」 is a colloquial variant of 「や」.
+- Examples show open-ended lists with implied additional items.",Basic Grammar.txt
+249b1f11-8873-4790-937e-aff285c26d14,grammar,3,The 「の」 Particle for Noun Modification,No,0,0,"- Creates generic abstract nouns (e.g., 「勉強するのを忘れた」).
+- Allows adjectives/verbs to function as nouns.
+- Can omit modified nouns when context is clear (e.g., 「ボブのだ」).",Basic Grammar.txt
+5e311b44-b32b-4a0c-812b-3783229428ae,grammar,3,Explanatory 「の/のだ/んだ」 Constructions,Yes,0.4801933132625575,4,"- Adds explanatory tone to sentences (e.g., 「今は忙しいの」).
+-「んだ」 is a common contraction of 「のだ」 for explanation.
+- Conjugation rules for different verb/adjective forms.",Basic Grammar.txt
+7c55c5ec-effc-4549-9bcf-624310fed6b9,grammar,4,Explanatory 「の」 and 「んだ」,No,0,0,"- Explains how 「の」 and 「んだ」 are used to seek explanations in questions
+- Demonstrates the contrast between stating facts vs. explaining reasons
+- Provides example dialogues showing practical usage in conversations",Basic Grammar.txt
+5627bcc1-04cd-4698-bf64-1a58da0d1307,grammar,3,Adverbs and Sentence-ending particles,No,0,0,"- Teaches how to convert i-adjectives and na-adjectives to adverbs
+- Explains flexible placement of adverbs in Japanese sentences
+- Introduces standalone adverbs like 「全然」 and 「たくさん」",Basic Grammar.txt
+019afba9-4f37-44cf-9157-5a1b88590c70,vocab,5,Vocabulary List,No,0,0,"- Lists common Japanese vocabulary related to daily life
+- Includes adjectives, nouns, and verbs with English translations
+- Covers terms like 早い, きれい, and 朝ご飯",Basic Grammar.txt

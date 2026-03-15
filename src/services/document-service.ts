@@ -71,12 +71,15 @@ function buildSegmentationPrompt(text: string, chunkIndex?: number, totalChunks?
 ${chunkNote}
 ## Rules
 
-1. Each section should cover exactly ONE concept (a grammar point, a vocabulary word, a kanji, etc.)
-2. Sections MUST be contiguous and non-overlapping — every paragraph belongs to exactly one section.
-3. The startMarker and endMarker must be EXACT quotes from the original text (8-15 words) that uniquely identify where each section starts and ends.
-4. For introductory/meta text that doesn't teach a specific concept, you may group it as a grammar-type topic with a descriptive title like "Introduction" or "Chapter Overview".
-5. If a topic references or builds on another topic in the same document, list it in dependsOn.
-6. The summary MUST be formatted as a bulleted list using dashes (-), containing 2-3 points explaining what the topic is, why it matters, and what the user will learn.
+1. Each section should cover exactly ONE concept (a grammar point, a vocabulary word/list, a kanji, etc.)
+2. **Crucial:** If a section contains BOTH a vocabulary list and a grammar explanation, you MUST split it into TWO separate topics:
+   - Topic A (type: 'vocab'): Covers the vocabulary list.
+   - Topic B (type: 'grammar'): Covers the grammar point.
+3. Sections MUST be contiguous and non-overlapping — every paragraph belongs to exactly one section.
+4. The startMarker and endMarker must be EXACT quotes from the original text (8-15 words) that uniquely identify where each section starts and ends.
+5. For introductory/meta text that doesn't teach a specific concept, you may group it as a grammar-type topic with a descriptive title like "Introduction" or "Chapter Overview".
+6. **Dependencies:** If a grammar topic relies on a preceding vocabulary list, you MUST list the exact title of the vocab topic in the grammar topic's \`dependsOn\` array.
+7. The summary MUST be formatted as a bulleted list using dashes (-), containing 2-3 points explaining what the topic is, why it matters, and what the user will learn.
 
 ## JLPT Level Guidelines
 - Level 5 (N5): Basic particles, basic verb forms, common everyday vocabulary
