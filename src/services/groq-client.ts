@@ -4,14 +4,14 @@
  */
 
 export type ModelType = 
-  | 'qwen/qwen3-32b' 
   | 'llama-3.3-70b-versatile' 
+  | 'qwen/qwen3-32b' 
   | 'llama-3.1-8b-instant' 
   | 'moonshotai/kimi-k2-instruct';
 
 export const MODEL_RATES: Record<ModelType, { rpm: number; tpm: number; rpd: number; maxChunkSize: number }> = {
-  'qwen/qwen3-32b': { rpm: 60, tpm: 6_000, rpd: 1_000, maxChunkSize: 4_000 },
   'llama-3.3-70b-versatile': { rpm: 30, tpm: 12_000, rpd: 1_000, maxChunkSize: 8_000 },
+  'qwen/qwen3-32b': { rpm: 60, tpm: 6_000, rpd: 1_000, maxChunkSize: 4_000 },
   'llama-3.1-8b-instant': { rpm: 30, tpm: 6_000, rpd: 14_400, maxChunkSize: 4_000 },
   'moonshotai/kimi-k2-instruct': { rpm: 60, tpm: 10_000, rpd: 1_000, maxChunkSize: 6_000 },
 };

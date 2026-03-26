@@ -56,7 +56,7 @@ const DAILY_GOAL_STORAGE = 'daily_goal';
 export const useAppStore = create<AppState>((set, get) => ({
   // Initial state
   apiKeys: [],
-  currentModel: 'qwen/qwen3-32b',
+  currentModel: 'llama-3.3-70b-versatile',
   isGeminiReady: true,
   isDatabaseReady: false,
   isLoading: false,
@@ -65,7 +65,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   totalReviews: 0,
   cardsDueCount: 0,
   dailyGoal: 10,
-  extractionModels: ['qwen/qwen3-32b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'moonshotai/kimi-k2-instruct'] as ModelType[],
+  extractionModels: ['llama-3.3-70b-versatile'] as ModelType[],
 
   // Actions
   setApiKeys: (keys) => {
@@ -134,15 +134,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       const apiKeys = storedKeys ? JSON.parse(storedKeys) : [];
       const dailyGoal = storedGoal ? parseInt(storedGoal, 10) : 10;
-      let currentModel = (storedModel as ModelType) || 'qwen/qwen3-32b';
-      const extractionModels: ModelType[] = storedExtractionModels
+      let currentModel = (storedModel as ModelType) || 'llama-3.3-70b-versatile';
+      let extractionModels: ModelType[] = storedExtractionModels
         ? JSON.parse(storedExtractionModels)
-        : ['qwen/qwen3-32b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'moonshotai/kimi-k2-instruct'];
+        : ['llama-3.3-70b-versatile'];
       
       // Validate model name (in case old invalid name is stored)
-      const validModels: ModelType[] = ['qwen/qwen3-32b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'moonshotai/kimi-k2-instruct'];
+      const validModels: ModelType[] = ['llama-3.3-70b-versatile', 'qwen/qwen3-32b', 'llama-3.1-8b-instant', 'moonshotai/kimi-k2-instruct'];
       if (!validModels.includes(currentModel)) {
-        currentModel = 'qwen/qwen3-32b';
+        currentModel = 'llama-3.3-70b-versatile';
+      }
+
+      // Clean up extraction models and ensure the recommended model is always available
+      extractionModels = extractionModels.filter(m => validModels.includes(m));
+      if (!extractionModels.includes('llama-3.3-70b-versatile')) {
+        extractionModels = ['llama-3.3-70b-versatile', ...extractionModels];
       }
 
       set({

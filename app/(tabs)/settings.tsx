@@ -358,7 +358,7 @@ import { processDocument, getUploadedDocuments, deleteDocument } from '../../src
                   <View style={styles.modelHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <Text style={styles.modelName}>{model}</Text>
-                      {model === 'qwen/qwen3-32b' && (
+                      {model === 'llama-3.3-70b-versatile' && (
                         <View style={styles.recommendedBadge}>
                           <Text style={styles.recommendedText}>Recommended</Text>
                         </View>
