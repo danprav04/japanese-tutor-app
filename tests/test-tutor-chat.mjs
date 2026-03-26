@@ -10,7 +10,7 @@
 
 import { readFileSync } from 'fs';
 
-const MODEL = 'qwen/qwen3-32b';
+const MODEL = 'llama-3.3-70b-versatile';
 const PROXY_URL = 'https://ai-proxy.promy.workers.dev';
 const APP_SECRET = 'sec_9f8d7c6b5a41234567890abcdef123456789';
 
